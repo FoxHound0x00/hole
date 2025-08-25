@@ -1,9 +1,29 @@
+"""
+Three Blobs HOLE Visualization Example
+
+This script demonstrates ALL visualization capabilities of the HOLE library
+on three blob data:
+- Persistence diagrams and barcodes for ALL distance metrics
+- PCA, MDS, t-SNE dimensionality reduction
+- Heatmaps and dendrograms
+- Sankey diagrams for cluster flow
+- Stacked bar charts for cluster evolution
+- Scatter hull visualizations (blob separation)
+"""
+
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.datasets import make_blobs
 
-import hole
+from hole import HOLEVisualizer
+from hole.core import distance_metrics
+from hole.visualization.cluster_flow import (
+    ClusterFlowAnalyzer,
+    ComponentEvolutionVisualizer,
+)
+from hole.visualization.scatter_hull import BlobVisualizer
 
 np.random.seed(42)
 
@@ -11,45 +31,38 @@ np.random.seed(42)
 OUTPUT_DIR = "examples/three_blobs_outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-from sklearn.datasets import make_blobs
-
 X, y = make_blobs(n_samples=500, centers=3, n_features=20, random_state=42)
 
-from hole.core import distance_metrics
-from hole.visualization.cluster_flow import (
-    ClusterFlowAnalyzer,
-    ComponentEvolutionVisualizer,
-)
-from hole.visualizer import HOLEVisualizer
-
+# Create distance matrices for all available metrics
 distance_matrices = {
     "euclidean": distance_metrics.euclidean_distance(X),
     "cosine": distance_metrics.cosine_distance(X),
-    "mahalanobis": distance_metrics.mahalanobis_distance(X=X),
-    "dn_euclidean": distance_metrics.density_normalized_distance(
-        X=X, dists=distance_metrics.euclidean_distance(X)
-    ),
-    "dn_cosine": distance_metrics.density_normalized_distance(
-        X=X, dists=distance_metrics.cosine_distance(X)
-    ),
-    "dn_mahalanobis": distance_metrics.density_normalized_distance(
-        X=X, dists=distance_metrics.mahalanobis_distance(X=X)
-    ),
+    "mahalanobis": distance_metrics.mahalanobis_distance(X),
+    "dn_euclidean": distance_metrics.density_normalized_euclidean(X),
+    "dn_cosine": distance_metrics.density_normalized_cosine(X),
+    "dn_mahalanobis": distance_metrics.density_normalized_mahalanobis(X),
 }
 
-# Handle geodesic distances with infinite value check
+# Try to add geodesic distance if possible
 try:
-    geodesic_dist = distance_metrics.geodesic_distances(X)
+    geodesic_dist = distance_metrics.geodesic_distance(
+        X, n_neighbors=min(10, X.shape[0] - 1)
+    )
     # Replace infinite values with a large finite value
     geodesic_dist[np.isinf(geodesic_dist)] = (
         np.nanmax(geodesic_dist[np.isfinite(geodesic_dist)]) * 10
     )
     distance_matrices["geodesic"] = geodesic_dist
-except:
+except Exception:
     print("Skipping geodesic distance due to computation issues")
     pass
 
+print(f"Available distance metrics: {list(distance_matrices.keys())}")
+
+# Process each distance metric
 for name, dist_matrix in distance_matrices.items():
+    print(f"\n=== PROCESSING {name.upper()} DISTANCE ===")
+
     # Create HOLEVisualizer for persistence analysis (using distance matrix)
     viz = HOLEVisualizer(
         distance_matrix_input=dist_matrix,
@@ -63,10 +76,10 @@ for name, dist_matrix in distance_matrices.items():
         "euclidean": "euclidean",
         "cosine": "cosine",
         "mahalanobis": "mahalanobis",
-        "dn_euclidean": "euclidean",  # Use base euclidean for PCA
-        "dn_cosine": "cosine",  # Use base cosine for PCA
-        "dn_mahalanobis": "mahalanobis",  # Use base mahalanobis for PCA
-        "geodesic": "euclidean",  # Use euclidean as fallback for geodesic
+        "dn_euclidean": "euclidean",
+        "dn_cosine": "cosine",
+        "dn_mahalanobis": "mahalanobis",
+        "geodesic": "euclidean",
     }
 
     # Create separate HOLEVisualizer for PCA (using original point cloud)
@@ -77,121 +90,190 @@ for name, dist_matrix in distance_matrices.items():
         max_edge_length=np.inf,
     )
 
-    ## plot persistence diagram, barcodes, and dimensionality reduction
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle(f"{name} Distance Matrix", fontsize=16)
+    print(f"\n=== PART 1: PERSISTENCE VISUALIZATIONS ({name}) ===")
 
-    ax1 = viz.plot_persistence_diagram(ax=axes[0, 0], title="Persistence Diagram")
-    ax2 = viz.plot_persistence_barcode(ax=axes[0, 1], title="Persistence Barcode")
-    ax3 = viz_pca.plot_dimensionality_reduction(
-        method="pca", ax=axes[1, 0], title="PCA (Original Features)"
+    # 1. Persistence Diagrams and Barcodes
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig.suptitle(f"Persistence Analysis - {name}", fontsize=14)
+
+    # Plot persistence diagram
+    viz.plot_persistence_diagram(ax=axes[0], title="Persistence Diagram")
+
+    # Plot persistence barcode
+    viz.plot_persistence_barcode(ax=axes[1], title="Persistence Barcode")
+
+    plt.tight_layout()
+    plt.savefig(
+        f"{OUTPUT_DIR}/persistence_visualizations_{name}.png",
+        dpi=300,
+        bbox_inches="tight",
     )
-    ax4 = viz.plot_dimensionality_reduction(
-        method="mds", ax=axes[1, 1], title="MDS (Distance Matrix)"
+    plt.show()
+
+    print(f"\n=== PART 2: DIMENSIONALITY REDUCTION ({name}) ===")
+
+    # 2. All Dimensionality Reduction Methods (PCA, t-SNE, MDS)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    fig.suptitle(f"Dimensionality Reduction - {name}", fontsize=14)
+
+    viz_pca.plot_dimensionality_reduction(
+        method="pca", ax=axes[0], true_labels=y, title="PCA"
+    )
+    viz_pca.plot_dimensionality_reduction(
+        method="tsne", ax=axes[1], true_labels=y, title="t-SNE"
+    )
+    viz_pca.plot_dimensionality_reduction(
+        method="mds", ax=axes[2], true_labels=y, title="MDS"
     )
 
     plt.tight_layout()
-    os.makedirs("plots/", exist_ok=True)
     plt.savefig(
-        f"plots/persistence_visualizations_{name}.png", dpi=500, bbox_inches="tight"
+        f"{OUTPUT_DIR}/dimensionality_reduction_{name}.png",
+        dpi=300,
+        bbox_inches="tight",
     )
     plt.show()
-    plt.close()
 
-    ## plot cluster flow evolution - Sankey diagram and stacked charts
-    print(f"Computing cluster flow evolution for {name}...")
-    analyzer = ClusterFlowAnalyzer(dist_matrix, max_thresholds=6)
-    cluster_evolution = analyzer.compute_cluster_evolution(y)
+    print(f"\n=== PART 3: HEATMAP AND DENDROGRAM ({name}) ===")
 
-    # Extract components and labels for visualization
-    components_ = cluster_evolution.get("components_", {})
-    labels_ = cluster_evolution.get("labels_", {})
+    # 3. Distance Matrix Heatmap with Dendrogram
+    from hole.visualization import plot_heatmap_with_dendrogram
 
-    if components_ and labels_:
-        comp_viz = ComponentEvolutionVisualizer(components_, labels_)
+    plot_heatmap_with_dendrogram(
+        dist_matrix,
+        true_labels=y,
+        title=f"Distance Matrix Heatmap - {name}",
+        figsize=(16, 8),
+    )
+    plt.savefig(
+        f"{OUTPUT_DIR}/heatmap_dendrograms_{name}.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.show()
 
-        # Get the first distance metric key
-        first_key = list(components_.keys())[0]
+    print(f"\n=== PART 4: CLUSTER FLOW ANALYSIS ({name}) ===")
 
-        # Plot Sankey diagram
+    # 4. Cluster Flow Analysis (Sankey and Stacked Bar Charts)
+    flow_analyzer = ClusterFlowAnalyzer(distance_matrix=dist_matrix)
+    components_ = flow_analyzer.analyze_cluster_flow()
+
+    if components_:
+        # Create component evolution visualizer
+        comp_viz = ComponentEvolutionVisualizer(components_)
+
+        # Plot Sankey Diagram
         fig, ax = plt.subplots(1, 1, figsize=(20, 12))
-        fig.suptitle(
-            f"{name} Distance Matrix - Cluster Flow Evolution (Sankey)", fontsize=16
-        )
+        fig.suptitle(f"Cluster Flow Evolution - {name}", fontsize=14)
 
+        first_key = list(components_.keys())[0]
         comp_viz.plot_sankey(
             first_key,
             original_labels=y,
             ax=ax,
-            title="Cluster Flow Evolution",
+            title="Cluster Evolution Flow",
             gray_second_layer=True,
         )
-
         plt.tight_layout()
         plt.savefig(
-            f"{OUTPUT_DIR}/sankey_diagram_{name}.png", dpi=500, bbox_inches="tight"
+            f"{OUTPUT_DIR}/sankey_diagram_{name}.png",
+            dpi=300,
+            bbox_inches="tight",
         )
         plt.show()
-        plt.close()
 
         # Plot Stacked Bar Chart
         fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-        fig.suptitle(
-            f"{name} Distance Matrix - Cluster Flow Evolution (Stacked)", fontsize=16
-        )
+        fig.suptitle(f"Cluster Evolution Stages - {name}", fontsize=14)
 
         comp_viz.plot_stacked_bars(
             first_key,
             original_labels=y,
             ax=ax,
-            title="Cluster Evolution",
+            title="Cluster Evolution Stages",
             gray_second_layer=True,
         )
-
         plt.tight_layout()
         plt.savefig(
-            f"{OUTPUT_DIR}/stacked_bar_chart_{name}.png", dpi=500, bbox_inches="tight"
+            f"{OUTPUT_DIR}/stacked_bar_chart_{name}.png",
+            dpi=300,
+            bbox_inches="tight",
         )
         plt.show()
-        plt.close()
-    else:
-        print(f"No cluster evolution data available for {name}")
 
-    ## plot heatmap dendrograms
-    print(f"Creating heatmap dendrograms for {name}...")
-    heatmap_dendro_viz = viz.get_heatmap_dendrogram_visualizer(
-        distance_matrix=dist_matrix
-    )
-    heatmap_dendro_viz.compute_persistence()
+    print(f"\n=== PART 5: SCATTER HULL VISUALIZATION ({name}) ===")
 
-    # Create heatmap with dendrogram
-    heatmap_dendro_viz.plot_dendrogram_with_heatmap(
-        labels=[f"P{i}" for i in range(len(X))],
-        title=f"{name} Distance Matrix with Dendrogram",
-        figsize=(16, 8),
+    # 5. Scatter Hull Visualization
+    blob_viz = BlobVisualizer(distance_matrix=dist_matrix)
+    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+    fig.suptitle(f"Scatter Hull Visualization - {name}", fontsize=14)
+
+    blob_viz.visualize_blobs(
+        true_labels=y,
+        ax=ax,
+        title=f"Blob Separation - {name}",
+        show_legend=True,
     )
-    plt.savefig(
-        f"{OUTPUT_DIR}/heatmap_dendrograms_{name}.png", dpi=500, bbox_inches="tight"
-    )
+    plt.tight_layout()
+    plt.savefig(f"{OUTPUT_DIR}/scatter_hull_{name}.png", dpi=300, bbox_inches="tight")
     plt.show()
-    plt.close()
 
-    ## plot scatter hull visualization
-    print(f"Creating scatter hull visualization for {name}...")
-    scatter_hull_viz = viz.get_scatter_hull_visualizer(figsize=(12, 8), alpha_hull=0.3)
+print("\n" + "=" * 80)
+print("COMPREHENSIVE COMPARISON ACROSS ALL METRICS")
+print("=" * 80)
 
-    # Perform blob separation analysis
-    results = scatter_hull_viz.analyze_blob_separation(
-        activations=X,
-        y_true=y,
-        cluster_evolution=cluster_evolution,
-        output_dir="plots/",
-        model_name="three_blobs",
-        condition_name=name,
-        layer_name="input",
-        distance_metric=name,
-    )
+# Create a comprehensive comparison plot
+n_metrics = len(distance_matrices)
+n_cols = min(4, n_metrics)
+n_rows = (n_metrics + n_cols - 1) // n_cols
 
-    print(f"Scatter hull analysis completed for {name}")
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+fig.suptitle("PCA Comparison Across All Distance Metrics", fontsize=16)
 
-print("All visualizations completed!")
+if n_rows == 1:
+    axes = [axes] if n_metrics == 1 else axes
+else:
+    axes_flat = axes.flatten()
+
+for i, (metric_name, _) in enumerate(distance_matrices.items()):
+    if n_rows == 1:
+        ax = axes[i] if n_metrics > 1 else axes
+    else:
+        if i >= len(axes_flat):
+            break
+
+        # Create sklearn-compatible visualizer
+        sklearn_metric_map = {
+            "euclidean": "euclidean",
+            "cosine": "cosine",
+            "mahalanobis": "mahalanobis",
+            "dn_euclidean": "euclidean",
+            "dn_cosine": "cosine",
+            "dn_mahalanobis": "mahalanobis",
+            "geodesic": "euclidean",
+        }
+
+        viz = HOLEVisualizer(
+            point_cloud=X,
+            distance_metric=sklearn_metric_map.get(metric_name, "euclidean"),
+        )
+
+        ax = axes_flat[i]
+        viz.plot_dimensionality_reduction(
+            method="pca",
+            ax=ax,
+            true_labels=y,
+            title=f"PCA - {metric_name}",
+        )
+
+# Hide empty subplots
+if n_rows > 1:
+    for i in range(len(distance_matrices), len(axes_flat)):
+        axes_flat[i].set_visible(False)
+
+plt.tight_layout()
+plt.savefig(f"{OUTPUT_DIR}/metric_comparison.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+print(f"\nAll plots saved to: {OUTPUT_DIR}/")
+print(f"Total distance metrics processed: {len(distance_matrices)}")
