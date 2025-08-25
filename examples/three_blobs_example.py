@@ -38,15 +38,23 @@ distance_matrices = {
     "euclidean": distance_metrics.euclidean_distance(X),
     "cosine": distance_metrics.cosine_distance(X),
     "mahalanobis": distance_metrics.mahalanobis_distance(X),
-    "dn_euclidean": distance_metrics.density_normalized_euclidean(X),
-    "dn_cosine": distance_metrics.density_normalized_cosine(X),
-    "dn_mahalanobis": distance_metrics.density_normalized_mahalanobis(X),
 }
+
+# Add density normalized versions
+base_euclidean = distance_matrices["euclidean"]
+base_cosine = distance_matrices["cosine"] 
+base_mahalanobis = distance_matrices["mahalanobis"]
+
+distance_matrices.update({
+    "dn_euclidean": distance_metrics.density_normalized_distance(X, base_euclidean, k=5),
+    "dn_cosine": distance_metrics.density_normalized_distance(X, base_cosine, k=5),
+    "dn_mahalanobis": distance_metrics.density_normalized_distance(X, base_mahalanobis, k=5),
+})
 
 # Try to add geodesic distance if possible
 try:
-    geodesic_dist = distance_metrics.geodesic_distance(
-        X, n_neighbors=min(10, X.shape[0] - 1)
+    geodesic_dist = distance_metrics.geodesic_distances(
+        X, k=min(10, X.shape[0] - 1)
     )
     # Replace infinite values with a large finite value
     geodesic_dist[np.isinf(geodesic_dist)] = (
@@ -137,11 +145,16 @@ for name, dist_matrix in distance_matrices.items():
     print(f"\n=== PART 3: HEATMAP AND DENDROGRAM ({name}) ===")
 
     # 3. Distance Matrix Heatmap with Dendrogram
-    from hole.visualization import plot_heatmap_with_dendrogram
+    from hole.visualization import HeatmapDendrograms
 
-    plot_heatmap_with_dendrogram(
-        dist_matrix,
-        true_labels=y,
+    heatmap_dendro = HeatmapDendrograms(distance_matrix=dist_matrix)
+    heatmap_dendro.compute_persistence()
+    
+    # Create point labels
+    labels = [f"Point_{i}" for i in range(len(y))]
+    
+    heatmap_dendro.plot_dendrogram_with_heatmap(
+        labels=labels,
         title=f"Distance Matrix Heatmap - {name}",
         figsize=(16, 8),
     )
@@ -156,11 +169,13 @@ for name, dist_matrix in distance_matrices.items():
 
     # 4. Cluster Flow Analysis (Sankey and Stacked Bar Charts)
     flow_analyzer = ClusterFlowAnalyzer(distance_matrix=dist_matrix)
-    components_ = flow_analyzer.analyze_cluster_flow()
+    cluster_evolution = flow_analyzer.compute_cluster_evolution(true_labels=y)
+    components_ = cluster_evolution.get("components_", {})
 
     if components_:
         # Create component evolution visualizer
-        comp_viz = ComponentEvolutionVisualizer(components_)
+        labels_ = cluster_evolution.get("labels_", {})
+        comp_viz = ComponentEvolutionVisualizer(components_, labels_)
 
         # Plot Sankey Diagram
         fig, ax = plt.subplots(1, 1, figsize=(20, 12))
@@ -201,22 +216,43 @@ for name, dist_matrix in distance_matrices.items():
         )
         plt.show()
 
-    print(f"\n=== PART 5: SCATTER HULL VISUALIZATION ({name}) ===")
+    print(f"\n=== PART 5: PCA WITH CLUSTER HULLS ({name}) ===")
 
-    # 5. Scatter Hull Visualization
-    blob_viz = BlobVisualizer(distance_matrix=dist_matrix)
-    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-    fig.suptitle(f"Scatter Hull Visualization - {name}", fontsize=14)
-
-    blob_viz.visualize_blobs(
-        true_labels=y,
-        ax=ax,
-        title=f"Blob Separation - {name}",
-        show_legend=True,
-    )
-    plt.tight_layout()
-    plt.savefig(f"{OUTPUT_DIR}/scatter_hull_{name}.png", dpi=300, bbox_inches="tight")
-    plt.show()
+    # 5. PCA with Cluster Hulls (using existing cluster flow data)
+    if components_:
+        # Get cluster labels from the best threshold
+        first_key = list(components_.keys())[0]
+        
+        # Find the threshold that gives us reasonable clusters
+        best_threshold = None
+        for threshold_key, n_clusters_value in components_[first_key].items():
+            if 2 <= n_clusters_value <= 10:  # Reasonable number of clusters
+                best_threshold = threshold_key
+                break
+        
+        if best_threshold and best_threshold in labels_[first_key]:
+            cluster_labels = labels_[first_key][best_threshold]
+            
+            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+            fig.suptitle(f"PCA with Cluster Hulls - {name}", fontsize=14)
+            
+            # Use PCA visualizer to create the plot
+            viz_pca.plot_dimensionality_reduction(
+                method="pca", 
+                ax=ax, 
+                true_labels=y, 
+                title=f"PCA - True Labels"
+            )
+            
+            plt.tight_layout()
+            plt.savefig(
+                f"{OUTPUT_DIR}/pca_with_hulls_{name}.png", dpi=300, bbox_inches="tight"
+            )
+            plt.show()
+        else:
+            print(f"No suitable clustering threshold found for {name}")
+    else:
+        print(f"No cluster evolution data available for {name} hull visualization")
 
 print("\n" + "=" * 80)
 print("COMPREHENSIVE COMPARISON ACROSS ALL METRICS")
