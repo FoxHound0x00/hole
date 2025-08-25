@@ -13,7 +13,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 from sklearn.datasets import make_blobs
 
-X, y = make_blobs(n_samples=1000, centers=3, n_features=20, random_state=42)
+X, y = make_blobs(n_samples=500, centers=3, n_features=20, random_state=42)
 
 from hole.core import distance_metrics
 from hole.visualization.cluster_flow import (
