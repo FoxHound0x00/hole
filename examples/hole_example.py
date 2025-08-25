@@ -237,25 +237,46 @@ for metric_name, dist_matrix in distance_matrices.items():
             f"No cluster evolution data available for {metric_name} flow visualizations"
         )
 
-    print(f"\n=== PART 5: SCATTER HULL VISUALIZATION ({metric_name}) ===")
+    print(f"\n=== PART 5: PCA WITH CLUSTER HULLS ({metric_name}) ===")
 
-    # 5. Scatter Hull (Blob) Visualization
-    blob_viz = hole_viz.get_blob_visualizer()
-    blob_viz.compute_cluster_evolution(true_labels)
-
-    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-    fig.suptitle(f"Scatter Hull Visualization - {metric_name}", fontsize=14)
-
-    blob_viz.plot_blob_separation(
-        ax=ax,
-        title=f"Cluster Separation Analysis - {metric_name}",
-        show_legend=True,
-    )
-    plt.tight_layout()
-    plt.savefig(
-        f"{OUTPUT_DIR}/scatter_hull_{metric_name}.png", dpi=300, bbox_inches="tight"
-    )
-    plt.show()
+    # 5. PCA with Cluster Hulls (using existing cluster flow data)
+    if components_:
+        # Get cluster labels from the best threshold
+        first_key = list(components_.keys())[0]
+        
+        # Find the threshold that gives us reasonable clusters
+        best_threshold = None
+        for threshold_key, threshold_data in components_[first_key].items():
+            if isinstance(threshold_data, dict) and "cluster_labels" in threshold_data:
+                n_clusters = len(np.unique(threshold_data["cluster_labels"]))
+                if 2 <= n_clusters <= 10:  # Reasonable number of clusters
+                    best_threshold = threshold_key
+                    break
+        
+        if best_threshold:
+            cluster_labels = components_[first_key][best_threshold]["cluster_labels"]
+            
+            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+            fig.suptitle(f"PCA with Cluster Hulls - {metric_name}", fontsize=14)
+            
+            # Use PCA visualizer to create the plot with cluster hulls
+            hole_viz_pca.plot_dimensionality_reduction(
+                method="pca", 
+                ax=ax, 
+                true_labels=true_labels, 
+                cluster_labels=cluster_labels,
+                title=f"PCA with Threshold-based Hulls ({best_threshold})"
+            )
+            
+            plt.tight_layout()
+            plt.savefig(
+                f"{OUTPUT_DIR}/pca_with_hulls_{metric_name}.png", dpi=300, bbox_inches="tight"
+            )
+            plt.show()
+        else:
+            print(f"No suitable clustering threshold found for {metric_name}")
+    else:
+        print(f"No cluster evolution data available for {metric_name} hull visualization")
 
 print("\n=== COMPARISON VISUALIZATION ===")
 
