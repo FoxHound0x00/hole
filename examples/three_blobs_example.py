@@ -42,20 +42,24 @@ distance_matrices = {
 
 # Add density normalized versions
 base_euclidean = distance_matrices["euclidean"]
-base_cosine = distance_matrices["cosine"] 
+base_cosine = distance_matrices["cosine"]
 base_mahalanobis = distance_matrices["mahalanobis"]
 
-distance_matrices.update({
-    "dn_euclidean": distance_metrics.density_normalized_distance(X, base_euclidean, k=5),
-    "dn_cosine": distance_metrics.density_normalized_distance(X, base_cosine, k=5),
-    "dn_mahalanobis": distance_metrics.density_normalized_distance(X, base_mahalanobis, k=5),
-})
+distance_matrices.update(
+    {
+        "dn_euclidean": distance_metrics.density_normalized_distance(
+            X, base_euclidean, k=5
+        ),
+        "dn_cosine": distance_metrics.density_normalized_distance(X, base_cosine, k=5),
+        "dn_mahalanobis": distance_metrics.density_normalized_distance(
+            X, base_mahalanobis, k=5
+        ),
+    }
+)
 
 # Try to add geodesic distance if possible
 try:
-    geodesic_dist = distance_metrics.geodesic_distances(
-        X, k=min(10, X.shape[0] - 1)
-    )
+    geodesic_dist = distance_metrics.geodesic_distances(X, k=min(10, X.shape[0] - 1))
     # Replace infinite values with a large finite value
     geodesic_dist[np.isinf(geodesic_dist)] = (
         np.nanmax(geodesic_dist[np.isfinite(geodesic_dist)]) * 10
@@ -149,10 +153,10 @@ for name, dist_matrix in distance_matrices.items():
 
     heatmap_dendro = HeatmapDendrograms(distance_matrix=dist_matrix)
     heatmap_dendro.compute_persistence()
-    
+
     # Create point labels
     labels = [f"Point_{i}" for i in range(len(y))]
-    
+
     heatmap_dendro.plot_dendrogram_with_heatmap(
         labels=labels,
         title=f"Distance Matrix Heatmap - {name}",
@@ -216,43 +220,99 @@ for name, dist_matrix in distance_matrices.items():
         )
         plt.show()
 
-    print(f"\n=== PART 5: PCA WITH CLUSTER HULLS ({name}) ===")
+    print(f"\n=== PART 5: PCA VS BLOB COMPARISON ({name}) ===")
 
-    # 5. PCA with Cluster Hulls (using existing cluster flow data)
-    if components_:
+    # 5. PCA vs Blob Comparison: True Labels vs Threshold-based Cluster Hulls
+    if components_ and labels_:
+        from hole.visualization.scatter_hull import generate_consistent_colors, BlobVisualizer
+        
         # Get cluster labels from the best threshold
         first_key = list(components_.keys())[0]
-        
-        # Find the threshold that gives us reasonable clusters
+
+        # Find the threshold that gives us reasonable clusters (between 2-10 clusters)
         best_threshold = None
+        best_cluster_labels = None
         for threshold_key, n_clusters_value in components_[first_key].items():
             if 2 <= n_clusters_value <= 10:  # Reasonable number of clusters
                 best_threshold = threshold_key
+                if threshold_key in labels_[first_key]:
+                    best_cluster_labels = labels_[first_key][threshold_key]
                 break
-        
-        if best_threshold and best_threshold in labels_[first_key]:
-            cluster_labels = labels_[first_key][best_threshold]
+
+        if best_threshold and best_cluster_labels is not None:
+            # Generate consistent colors for true labels and cluster hulls
+            n_true_labels = len(np.unique(y))
+            n_clusters = len(np.unique(best_cluster_labels))
             
-            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
-            fig.suptitle(f"PCA with Cluster Hulls - {name}", fontsize=14)
+            true_label_colors = generate_consistent_colors(n_true_labels, include_noise=True)
+            cluster_colors = generate_consistent_colors(n_clusters, include_noise=True)
             
-            # Use PCA visualizer to create the plot
+            # Create color maps
+            true_label_color_map = {label: true_label_colors[i] for i, label in enumerate(np.unique(y))}
+            cluster_color_map = {label: cluster_colors[i] for i, label in enumerate(np.unique(best_cluster_labels))}
+            
+            # Create side-by-side PCA plots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+            fig.suptitle(f"PCA vs Blob Comparison - {name}", fontsize=16)
+            
+            # LEFT PLOT: PCA with True Labels
             viz_pca.plot_dimensionality_reduction(
-                method="pca", 
-                ax=ax, 
-                true_labels=y, 
-                title=f"PCA - True Labels"
+                method="pca", ax=ax1, true_labels=y, 
+                title="PCA - True Labels"
             )
+            ax1.set_xlabel("PC1")
+            ax1.set_ylabel("PC2")
+            ax1.grid(True, alpha=0.3)
+            
+            # RIGHT PLOT: PCA with Cluster Hulls at Threshold
+            # First plot the points colored by true labels
+            from sklearn.decomposition import PCA
+            pca = PCA(n_components=2, random_state=42)
+            points_2d = pca.fit_transform(X)
+            
+            # Plot points colored by true labels
+            for label in np.unique(y):
+                mask = y == label
+                color = true_label_color_map[label]
+                ax2.scatter(points_2d[mask, 0], points_2d[mask, 1], 
+                           c=[color], s=50, alpha=0.7, label=f"True {label}")
+            
+            # Draw convex hulls around threshold-based clusters
+            blob_viz = BlobVisualizer(figsize=(12, 10), alpha_hull=0.3)
+            for cluster_id in np.unique(best_cluster_labels):
+                if cluster_id == -1:  # Skip noise
+                    continue
+                cluster_mask = best_cluster_labels == cluster_id
+                if np.sum(cluster_mask) >= 3:  # Need at least 3 points for hull
+                    cluster_points = points_2d[cluster_mask]
+                    hull_color = cluster_color_map[cluster_id]
+                    
+                    # Create convex hull boundary
+                    hull_boundary = blob_viz._create_blob_boundary(cluster_points, method="convex", padding_factor=0.1)
+                    
+                    if hull_boundary is not None:
+                        # Plot the hull as a filled polygon
+                        ax2.fill(hull_boundary[:, 0], hull_boundary[:, 1], 
+                                color=hull_color, alpha=0.3, edgecolor=hull_color, linewidth=2)
+            
+            ax2.set_title(f"PCA - Cluster Hulls (Threshold {best_threshold})")
+            ax2.set_xlabel("PC1")
+            ax2.set_ylabel("PC2")
+            ax2.grid(True, alpha=0.3)
+            ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             
             plt.tight_layout()
             plt.savefig(
-                f"{OUTPUT_DIR}/pca_with_hulls_{name}.png", dpi=300, bbox_inches="tight"
+                f"{OUTPUT_DIR}/pca_vs_blob_comparison_{name}.png", 
+                dpi=300, bbox_inches="tight"
             )
             plt.show()
+            
+            print(f"      PCA vs Blob comparison completed for {name} (threshold: {best_threshold})")
         else:
-            print(f"No suitable clustering threshold found for {name}")
+            print(f"No suitable clustering threshold found for {name} blob visualization")
     else:
-        print(f"No cluster evolution data available for {name} hull visualization")
+        print(f"No cluster evolution data available for {name} blob visualization")
 
 print("\n" + "=" * 80)
 print("COMPREHENSIVE COMPARISON ACROSS ALL METRICS")
