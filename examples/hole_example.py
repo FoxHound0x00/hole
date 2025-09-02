@@ -374,6 +374,47 @@ for i, (metric_name, dist_matrix) in enumerate(distance_matrices.items()):
         title=f"MDS - {metric_name}",
     )
 
+    # Save individual MDS plot
+    fig_individual = plt.figure(figsize=(10, 8))
+    ax_individual = fig_individual.add_subplot(111)
+    viz.plot_dimensionality_reduction(
+        method="mds",
+        ax=ax_individual,
+        true_labels=true_labels,
+        title=f"MDS - {metric_name}",
+    )
+    plt.tight_layout()
+    plt.savefig(
+        f"{OUTPUT_DIR}/mds_individual_{metric_name}.png", dpi=300, bbox_inches="tight"
+    )
+    plt.close(fig_individual)
+
+    # Save individual heatmap for this MDS
+    fig_heatmap = plt.figure(figsize=(10, 8))
+    ax_heatmap = fig_heatmap.add_subplot(111)
+
+    # Create heatmap using the distance matrix
+    import seaborn as sns
+
+    sns.heatmap(
+        dist_matrix,
+        ax=ax_heatmap,
+        cmap="viridis",
+        square=True,
+        cbar_kws={"label": "Distance"},
+    )
+    ax_heatmap.set_title(f"Distance Matrix Heatmap - {metric_name}")
+    ax_heatmap.set_xlabel("Sample Index")
+    ax_heatmap.set_ylabel("Sample Index")
+
+    plt.tight_layout()
+    plt.savefig(
+        f"{OUTPUT_DIR}/heatmap_individual_{metric_name}.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close(fig_heatmap)
+
 plt.tight_layout()
 plt.savefig(f"{OUTPUT_DIR}/metric_comparison.png", dpi=300, bbox_inches="tight")
 plt.show()

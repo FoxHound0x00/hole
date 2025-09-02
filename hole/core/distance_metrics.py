@@ -165,7 +165,9 @@ def cosine_distance(X: np.ndarray) -> np.ndarray:
 
 
 def mahalanobis_distance(
-    X: np.ndarray, cov_inv: Optional[np.ndarray] = None, pca_components: int = 50
+    X: np.ndarray,
+    cov_inv: Optional[np.ndarray] = None,
+    pca_components: int = 10,
 ) -> np.ndarray:
     """
     Compute Mahalanobis distance matrix with optional PCA preprocessing.
@@ -178,33 +180,92 @@ def mahalanobis_distance(
     Returns:
         Symmetric distance matrix of shape (n_samples, n_samples)
     """
-    # Apply PCA if data is high-dimensional
-    if X.shape[1] > pca_components:
-        pca = PCA(n_components=min(pca_components, X.shape[0] - 1, X.shape[1]))
+    # Apply PCA if data is high-dimensional or if we have too few samples
+    # Use fewer components to avoid numerical instability
+    n_samples, n_features = X.shape
+    max_components = min(pca_components, n_samples - 2, n_features)
+
+    if n_features > max_components or n_samples < n_features * 2:
+        if max_components < 2:
+            # Too few samples, fallback to Euclidean
+            print("Warning: Too few samples for Mahalanobis distance, using Euclidean")
+            return euclidean_distance(X)
+
+        pca = PCA(n_components=max_components)
         X_processed = pca.fit_transform(X)
     else:
         X_processed = X.copy()
 
-    # Compute covariance matrix and its inverse
+    # Compute covariance matrix and its inverse with better regularization
     if cov_inv is None:
         cov_matrix = np.cov(X_processed.T)
-        # Add regularization to prevent singular matrices
-        cov_matrix += np.eye(cov_matrix.shape[0]) * 1e-6
+
+        # Add stronger regularization based on data scale
+        reg_factor = max(1e-6, np.trace(cov_matrix) / cov_matrix.shape[0] * 1e-3)
+        cov_matrix += np.eye(cov_matrix.shape[0]) * reg_factor
+
+        # Check condition number
         try:
+            cond_num = np.linalg.cond(cov_matrix)
+            if cond_num > 1e12:
+                print(
+                    f"Warning: Covariance matrix is poorly conditioned (cond={cond_num:.2e}), using regularization"
+                )
+                cov_matrix += np.eye(cov_matrix.shape[0]) * reg_factor * 100
+
             cov_inv = np.linalg.inv(cov_matrix)
         except np.linalg.LinAlgError:
-            # Fallback to pseudo-inverse
-            cov_inv = np.linalg.pinv(cov_matrix)
+            # Fallback to pseudo-inverse with stronger regularization
+            print("Warning: Using pseudo-inverse for covariance matrix")
+            cov_inv = np.linalg.pinv(cov_matrix, rcond=1e-10)
 
     try:
-        distances = pdist(X_processed, metric="mahalanobis", VI=cov_inv)
-        return squareform(distances)
-    except (np.linalg.LinAlgError, ValueError):
+        # Use chunked computation for large datasets to avoid memory issues
+        if n_samples > 1000:
+            print(
+                "Warning: Large dataset detected, using chunked Mahalanobis computation"
+            )
+            return _chunked_mahalanobis_distance(X_processed, cov_inv)
+        else:
+            distances = pdist(X_processed, metric="mahalanobis", VI=cov_inv)
+            return squareform(distances)
+    except (np.linalg.LinAlgError, ValueError, MemoryError) as e:
         # Fallback to Euclidean distance
         print(
-            "Warning: Mahalanobis distance computation failed, falling back to Euclidean"
+            f"Warning: Mahalanobis distance computation failed ({e}), falling back to Euclidean"
         )
         return euclidean_distance(X_processed)
+
+
+def _chunked_mahalanobis_distance(
+    X: np.ndarray, cov_inv: np.ndarray, chunk_size: int = 100
+) -> np.ndarray:
+    """
+    Compute Mahalanobis distance matrix in chunks to avoid memory issues.
+    """
+    n_samples = X.shape[0]
+    distance_matrix = np.zeros((n_samples, n_samples))
+
+    for i in range(0, n_samples, chunk_size):
+        end_i = min(i + chunk_size, n_samples)
+        for j in range(i, n_samples, chunk_size):
+            end_j = min(j + chunk_size, n_samples)
+
+            # Compute distances for this chunk
+            chunk_i = X[i:end_i]
+            chunk_j = X[j:end_j]
+
+            # Compute pairwise distances manually
+            for ii, x_i in enumerate(chunk_i):
+                for jj, x_j in enumerate(chunk_j):
+                    if i + ii <= j + jj:  # Only compute upper triangle
+                        diff = x_i - x_j
+                        dist = np.sqrt(diff.T @ cov_inv @ diff)
+                        distance_matrix[i + ii, j + jj] = dist
+                        if i + ii != j + jj:  # Make symmetric
+                            distance_matrix[j + jj, i + ii] = dist
+
+    return distance_matrix
 
 
 def floyd_warshall(dist_matrix):
