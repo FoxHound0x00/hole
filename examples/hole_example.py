@@ -22,7 +22,7 @@ from hole.visualization import ClusterFlowAnalyzer
 from hole.visualization.scatter_hull import BlobVisualizer
 
 # Create output directory for plots
-OUTPUT_DIR = "examples/hole_example_outputs"
+OUTPUT_DIR = "hole_example_outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Generate synthetic point cloud data
@@ -242,11 +242,11 @@ for metric_name, dist_matrix in distance_matrices.items():
 
     # 5. PCA vs Blob Comparison: True Labels vs Threshold-based Cluster Hulls
     if components_ and labels_:
-        from hole.visualization.scatter_hull import generate_consistent_colors, BlobVisualizer
-        
+        from hole.visualization.scatter_hull import generate_consistent_colors
+
         # Get cluster labels from the best threshold
         first_key = list(components_.keys())[0]
-        
+
         # Find the threshold that gives us reasonable clusters (between 2-10 clusters)
         best_threshold = None
         best_cluster_labels = None
@@ -256,45 +256,52 @@ for metric_name, dist_matrix in distance_matrices.items():
                 if threshold_key in labels_[first_key]:
                     best_cluster_labels = labels_[first_key][threshold_key]
                 break
-        
+
         if best_threshold and best_cluster_labels is not None:
             # Generate consistent colors for true labels and cluster hulls
             n_true_labels = len(np.unique(true_labels))
             n_clusters = len(np.unique(best_cluster_labels))
-            
-            true_label_colors = generate_consistent_colors(n_true_labels, include_noise=True)
-            cluster_colors = generate_consistent_colors(n_clusters, include_noise=True)
-            
-            # Create color maps
-            true_label_color_map = {label: true_label_colors[i] for i, label in enumerate(np.unique(true_labels))}
-            cluster_color_map = {label: cluster_colors[i] for i, label in enumerate(np.unique(best_cluster_labels))}
-            
-            # Create side-by-side PCA plots
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
-            fig.suptitle(f"PCA vs Blob Comparison - {metric_name}", fontsize=16)
-            
-            # LEFT PLOT: PCA with True Labels
-            hole_viz.plot_dimensionality_reduction(
-                method="pca", ax=ax1, true_labels=true_labels, 
-                title="PCA - True Labels"
+
+            true_label_colors = generate_consistent_colors(
+                n_true_labels, include_noise=True
             )
-            ax1.set_xlabel("PC1")
-            ax1.set_ylabel("PC2")
-            ax1.grid(True, alpha=0.3)
-            
-            # RIGHT PLOT: PCA with Cluster Hulls at Threshold
-            # First plot the points colored by true labels
+            cluster_colors = generate_consistent_colors(n_clusters, include_noise=True)
+
+            # Create color maps
+            true_label_color_map = {
+                label: true_label_colors[i]
+                for i, label in enumerate(np.unique(true_labels))
+            }
+            cluster_color_map = {
+                label: cluster_colors[i]
+                for i, label in enumerate(np.unique(best_cluster_labels))
+            }
+
+            # Blob visualization plot -- single plot which has true labels and cluster hulls
+            fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+            fig.suptitle(
+                f"PCA - {metric_name} (Threshold {best_threshold})",
+                fontsize=16,
+            )
+
             from sklearn.decomposition import PCA
+
             pca = PCA(n_components=2, random_state=42)
             points_2d = pca.fit_transform(points)
-            
-            # Plot points colored by true labels
+
+            # Plot points colored by true/original class labels
             for label in np.unique(true_labels):
                 mask = true_labels == label
                 color = true_label_color_map[label]
-                ax2.scatter(points_2d[mask, 0], points_2d[mask, 1], 
-                           c=[color], s=50, alpha=0.7, label=f"True {label}")
-            
+                ax.scatter(
+                    points_2d[mask, 0],
+                    points_2d[mask, 1],
+                    c=[color],
+                    s=50,
+                    alpha=0.7,
+                    label=f"Class {label}",
+                )
+
             # Draw convex hulls around threshold-based clusters
             blob_viz = BlobVisualizer(figsize=(12, 10), alpha_hull=0.3)
             for cluster_id in np.unique(best_cluster_labels):
@@ -304,66 +311,67 @@ for metric_name, dist_matrix in distance_matrices.items():
                 if np.sum(cluster_mask) >= 3:  # Need at least 3 points for hull
                     cluster_points = points_2d[cluster_mask]
                     hull_color = cluster_color_map[cluster_id]
-                    
+
                     # Create convex hull boundary
-                    hull_boundary = blob_viz._create_blob_boundary(cluster_points, method="convex", padding_factor=0.1)
-                    
+                    hull_boundary = blob_viz._create_blob_boundary(
+                        cluster_points, method="convex", padding_factor=0.1
+                    )
+
                     if hull_boundary is not None:
                         # Plot the hull as a filled polygon
-                        ax2.fill(hull_boundary[:, 0], hull_boundary[:, 1], 
-                                color=hull_color, alpha=0.3, edgecolor=hull_color, linewidth=2)
-            
-            ax2.set_title(f"PCA - Cluster Hulls (Threshold {best_threshold})")
-            ax2.set_xlabel("PC1")
-            ax2.set_ylabel("PC2")
-            ax2.grid(True, alpha=0.3)
-            ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            
+                        ax.fill(
+                            hull_boundary[:, 0],
+                            hull_boundary[:, 1],
+                            color=hull_color,
+                            alpha=0.3,
+                            edgecolor=hull_color,
+                            linewidth=2,
+                        )
+
+            ax.set_xlabel("PC1")
+            ax.set_ylabel("PC2")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
             plt.tight_layout()
             plt.savefig(
-                f"{OUTPUT_DIR}/pca_vs_blob_comparison_{metric_name}.png", 
-                dpi=300, bbox_inches="tight"
+                f"{OUTPUT_DIR}/pca_vs_blob_comparison_{metric_name}.png",
+                dpi=300,
+                bbox_inches="tight",
             )
             plt.show()
-            
-            print(f"      PCA vs Blob comparison completed for {metric_name} (threshold: {best_threshold})")
+
+            print(
+                f"      PCA vs Blob comparison completed for {metric_name} (threshold: {best_threshold})"
+            )
         else:
-            print(f"No suitable clustering threshold found for {metric_name} blob visualization")
+            print(
+                f"No suitable clustering threshold found for {metric_name} blob visualization"
+            )
     else:
-        print(f"No cluster evolution data available for {metric_name} blob visualization")
+        print(
+            f"No cluster evolution data available for {metric_name} blob visualization"
+        )
 
 print("\n=== COMPARISON VISUALIZATION ===")
 
-# Create a comparison of metrics
+# Create a comparison of metrics using MDS
 fig, axes = plt.subplots(2, 4, figsize=(24, 12))
-fig.suptitle("Metric Comparison - PCA Visualization", fontsize=16)
+fig.suptitle("Metric Comparison - MDS Visualization", fontsize=16)
 
 axes_flat = axes.flatten()
 for i, (metric_name, dist_matrix) in enumerate(distance_matrices.items()):
     if i >= len(axes_flat):
         break
 
-    # Create sklearn-compatible visualizer
-    sklearn_metric_map = {
-        "euclidean": "euclidean",
-        "cosine": "cosine",
-        "mahalanobis": "mahalanobis",
-        "dn_euclidean": "euclidean",
-        "dn_cosine": "cosine",
-        "dn_mahalanobis": "mahalanobis",
-        "geodesic": "euclidean",
-    }
-
-    viz = HOLEVisualizer(
-        point_cloud=points,
-        distance_metric=sklearn_metric_map.get(metric_name, "euclidean"),
-    )
+    # Create visualizer with distance matrix for MDS
+    viz = HOLEVisualizer(distance_matrix_input=dist_matrix, distance_metric=metric_name)
 
     viz.plot_dimensionality_reduction(
-        method="pca",
+        method="mds",
         ax=axes_flat[i],
         true_labels=true_labels,
-        title=f"PCA - {metric_name}",
+        title=f"MDS - {metric_name}",
     )
 
 plt.tight_layout()
