@@ -127,6 +127,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+*_env/
 
 # Spyder project settings
 .spyderproject
@@ -155,127 +156,33 @@ cython_debug/
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be added to the global gitignore or merged into this project gitignore.  For a PyCharm
-#  project, it is recommended to uncomment the following lines:
-#.idea/
-#.idea/**/workspace.xml
-#.idea/**/tasks.xml
-#.idea/**/usage.statistics.xml
-#.idea/**/dictionaries
-#.idea/**/shelf
+#  project, it is not recommended to check the .gitignore file into version control.
+.idea/
 
-# VS Code
-.vscode/
-
-# Vim
-*.swp
-*.swo
-*~
-
-# Emacs
-*~
-\#*\#
-.\#*
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.tmp
-*.bak
-*.swp
-!*.svg
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# Project specific
-data/
-results/
-experiments/
+# HOLE specific
+# Generated plots and visualizations
 *.png
-# But keep example output directories
-!examples/hole_example_outputs/*.png
-!examples/three_blobs_outputs/*.png
-!examples/comprehensive_analysis_results/**/*.png
 *.jpg
 *.jpeg
-*.gif
-*.svg
 *.pdf
-*.pkl
-*.npy
-*.npz
-*.h5
-*.hdf5
-*.pt
-*.pth
-*.ckpt
-*.model
-*.weights
+*.svg
 
-# Temporary files
+# Temporary directories
 temp/
 tmp/
-*.tmp
-*.temp
+*_outputs/
 
-# Logs
-logs/
-*.log
-
-# IDE
-.idea/
-.vscode/
-*.code-workspace
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Configuration files (if containing secrets)
-config.ini
-config.yaml
-config.json
-secrets.json
-.secrets
+# Generated data files
+*.pkl
+*.pickle
+*.npy
+*.npz
 
 # OS generated files
+.DS_Store
 .DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Example-generated figures and output directories
-examples/*.png
-examples/hole_example_outputs/
-examples/three_blobs_outputs/
-examples/comprehensive_analysis_results/
-examples/comprehensive_analysis_results.zip
