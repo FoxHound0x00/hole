@@ -8,9 +8,8 @@ class is located in the parent hole package.
 
 # Distance functions are now in core
 from ..core.distance_metrics import distance_matrix, euclidean
-from .cluster_flow import ClusterFlowAnalyzer
-from .cluster_flow import ComponentEvolutionVisualizer as ClusterFlow
-from .heatmap_dendrograms import PersistenceDendrogram as HeatmapDendrograms
+from .cluster_flow import ClusterFlowAnalyzer, ComponentEvolutionVisualizer
+from .heatmap_dendrograms import PersistenceDendrogram
 from .pers_vis import PersVis
 
 # Individual visualization functions (legacy support)
@@ -19,16 +18,14 @@ from .persistence_vis import (
     plot_persistence_barcode,
     plot_persistence_diagram,
 )
-
-# High-quality visualization classes
-from .scatter_hull import BlobVisualizer as ScatterHull
+from .scatter_hull import BlobVisualizer
 
 __all__ = [
-    # High-quality visualization classes
-    "ScatterHull",
-    "ClusterFlow",
+    # Main visualization classes (no confusing aliases)
+    "BlobVisualizer",
+    "ComponentEvolutionVisualizer",
     "ClusterFlowAnalyzer",
-    "HeatmapDendrograms",
+    "PersistenceDendrogram",
     "PersVis",
     # Legacy functions (backward compatibility)
     "plot_persistence_diagram",

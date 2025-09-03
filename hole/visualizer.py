@@ -5,12 +5,15 @@ This class automatically computes persistent homology when initialized and provi
 access to all visualization functions for homological observation of latent embeddings.
 """
 
+import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from .core.distance_metrics import distance_matrix
+
+logger = logging.getLogger(__name__)
 
 # Import from core and utils
 from .core.persistence import (
@@ -21,7 +24,12 @@ from .core.persistence import (
 )
 
 # Import high-quality visualization classes
-from .visualization import ClusterFlow, HeatmapDendrograms, PersVis, ScatterHull
+from .visualization import (
+    BlobVisualizer,
+    ComponentEvolutionVisualizer,
+    PersistenceDendrogram,
+    PersVis,
+)
 
 # Import visualization functions
 from .visualization.persistence_vis import (
@@ -80,6 +88,44 @@ class HOLEVisualizer:
         if point_cloud is not None and distance_matrix_input is not None:
             raise ValueError("Provide only one of point_cloud or distance_matrix")
 
+        # Validate point cloud
+        if point_cloud is not None:
+            if not isinstance(point_cloud, np.ndarray):
+                raise TypeError("point_cloud must be a numpy array")
+            if point_cloud.ndim != 2:
+                raise ValueError(
+                    "point_cloud must be 2D array of shape (n_samples, n_features)"
+                )
+            if point_cloud.shape[0] < 2:
+                raise ValueError("point_cloud must have at least 2 samples")
+
+        # Validate distance matrix
+        if distance_matrix_input is not None:
+            if not isinstance(distance_matrix_input, np.ndarray):
+                raise TypeError("distance_matrix_input must be a numpy array")
+            if distance_matrix_input.ndim != 2:
+                raise ValueError("distance_matrix_input must be 2D")
+            if distance_matrix_input.shape[0] != distance_matrix_input.shape[1]:
+                raise ValueError("distance_matrix_input must be square")
+            if distance_matrix_input.shape[0] < 2:
+                raise ValueError("distance_matrix_input must be at least 2x2")
+            if not np.allclose(distance_matrix_input, distance_matrix_input.T):
+                logger.warning(
+                    "Distance matrix is not symmetric, this may cause issues"
+                )
+            if np.any(np.diag(distance_matrix_input) != 0):
+                logger.warning(
+                    "Distance matrix diagonal is not zero, this may cause issues"
+                )
+
+        # Validate other parameters
+        if not isinstance(max_dimension, int) or max_dimension < 0:
+            raise ValueError("max_dimension must be a non-negative integer")
+        if max_dimension > 2:
+            logger.warning("max_dimension > 2 may be computationally expensive")
+        if not (isinstance(max_edge_length, (int, float)) and max_edge_length > 0):
+            raise ValueError("max_edge_length must be a positive number")
+
         # Store inputs
         self.point_cloud = point_cloud
         self.distance_metric = distance_metric
@@ -91,18 +137,18 @@ class HOLEVisualizer:
             self.distance_matrix = distance_matrix_input
             self.n_points = distance_matrix_input.shape[0]
         else:
-            print("Computing distance matrix...")
+            logger.info("Computing distance matrix...")
             self.distance_matrix = distance_matrix(point_cloud, metric=distance_metric)
             self.n_points = len(point_cloud)
 
         # Compute persistent homology automatically
-        print("Computing persistent homology...")
+        logger.info("Computing persistent homology...")
         self.persistence = compute_persistence(
             self.distance_matrix,
             max_dimension=max_dimension,
             max_edge_length=max_edge_length,
         )
-        print(f"Computed persistence with {len(self.persistence)} features")
+        logger.info(f"Computed persistence with {len(self.persistence)} features")
 
         # Store additional computed data for visualizations
         self._cluster_evolution = None
@@ -113,7 +159,7 @@ class HOLEVisualizer:
         if self._cluster_evolution is not None:
             return self._cluster_evolution
 
-        print("Computing cluster evolution...")
+        logger.info("Computing cluster evolution...")
 
         # Extract death thresholds for 0-dimensional features
         self._death_thresholds = extract_death_thresholds(self.persistence, dimension=0)
@@ -131,17 +177,17 @@ class HOLEVisualizer:
         return self._cluster_evolution
 
     # visualization methods
-    def get_scatter_hull_visualizer(self, **kwargs):
-        """Get a ScatterHull visualizer instance."""
-        return ScatterHull(**kwargs)
+    def get_blob_visualizer(self, **kwargs):
+        """Get a BlobVisualizer instance."""
+        return BlobVisualizer(**kwargs)
 
     def get_cluster_flow_visualizer(self, **kwargs):
-        """Get a ClusterFlow visualizer instance."""
-        return ClusterFlow(**kwargs)
+        """Get a ComponentEvolutionVisualizer instance."""
+        return ComponentEvolutionVisualizer(**kwargs)
 
-    def get_heatmap_dendrogram_visualizer(self, **kwargs):
-        """Get a HeatmapDendrograms visualizer instance."""
-        return HeatmapDendrograms(**kwargs)
+    def get_persistence_dendrogram_visualizer(self, **kwargs):
+        """Get a PersistenceDendrogram visualizer instance."""
+        return PersistenceDendrogram(**kwargs)
 
     def get_pers_vis_visualizer(self, **kwargs):
         """Get a PersVis visualizer instance."""

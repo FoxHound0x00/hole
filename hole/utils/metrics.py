@@ -5,6 +5,7 @@ This module provides various metrics for evaluating clustering quality,
 topological features, and model performance in the context of TDA.
 """
 
+import logging
 from typing import Dict, List, Optional, Tuple, Union
 
 import gudhi as gd
@@ -17,6 +18,8 @@ from sklearn.metrics import (
     normalized_mutual_info_score,
     silhouette_score,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def compute_persistence_entropy(persistence_diagram: List[Tuple]) -> float:
@@ -77,10 +80,12 @@ def compute_persistence_stability(
         ]
 
         if not diag1 or not diag2:
+            logger.warning("One or both persistence diagrams are empty")
             return float("inf")
 
         return gd.bottleneck_distance(diag1, diag2)
-    except Exception:
+    except (ValueError, RuntimeError) as e:
+        logger.error(f"Failed to compute bottleneck distance: {e}")
         return float("inf")
 
 
@@ -106,19 +111,22 @@ def compute_clustering_metrics(
     if len(np.unique(cluster_labels)) > 1:
         try:
             metrics["silhouette_score"] = silhouette_score(data, cluster_labels)
-        except:
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"Failed to compute silhouette score: {e}")
             metrics["silhouette_score"] = -1.0
 
         try:
             metrics["calinski_harabasz_score"] = calinski_harabasz_score(
                 data, cluster_labels
             )
-        except:
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"Failed to compute Calinski-Harabasz score: {e}")
             metrics["calinski_harabasz_score"] = 0.0
 
         try:
             metrics["davies_bouldin_score"] = davies_bouldin_score(data, cluster_labels)
-        except:
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"Failed to compute Davies-Bouldin score: {e}")
             metrics["davies_bouldin_score"] = float("inf")
     else:
         metrics["silhouette_score"] = -1.0
@@ -131,14 +139,16 @@ def compute_clustering_metrics(
             metrics["adjusted_rand_score"] = adjusted_rand_score(
                 true_labels, cluster_labels
             )
-        except:
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"Failed to compute adjusted rand score: {e}")
             metrics["adjusted_rand_score"] = 0.0
 
         try:
             metrics["normalized_mutual_info"] = normalized_mutual_info_score(
                 true_labels, cluster_labels
             )
-        except:
+        except (ValueError, RuntimeError) as e:
+            logger.warning(f"Failed to compute normalized mutual info: {e}")
             metrics["normalized_mutual_info"] = 0.0
 
         # Purity and homogeneity
