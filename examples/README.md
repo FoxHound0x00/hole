@@ -5,10 +5,12 @@ This directory contains examples demonstrating the HOLE library functionality.
 ## Quick Start Examples
 
 ### 1. `simple_example.py`
-**Recommended starting point** - Basic usage with persistence diagrams and PCA visualization.
-- 20 lines of code
-- Shows fundamental HOLE workflow
-- Good for beginners
+**Recommended starting point** - Shows HOLE's core visualization capabilities.
+- Sankey diagrams for cluster evolution
+- Stacked bar charts for threshold analysis  
+- Heatmap dendrograms for distance matrices
+- Blob visualizations with convex hulls
+- Demonstrates what makes HOLE unique
 
 ### 2. `distance_metrics_example.py` 
 Compare different distance metrics (Euclidean, cosine, Manhattan).
