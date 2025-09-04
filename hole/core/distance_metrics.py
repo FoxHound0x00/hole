@@ -349,13 +349,34 @@ def density_normalized_distance(
     Returns:
         Density-normalized distance matrix
     """
-    triu_indices = np.triu_indices_from(dists, k=1)
-    sorted_idx = np.argsort(dists, axis=1)
-    kth_ngbr = sorted_idx[:, k - 1]
-    kth_dist = dists[np.arange(dists.shape[0]), kth_ngbr]
+    n_points = dists.shape[0]
+
+    # For each point, find its k-th nearest neighbor distance
+    # Sort each row and get the k-th smallest distance (excluding self)
+    sorted_dists = np.sort(dists, axis=1)
+    kth_neighbor_dists = sorted_dists[
+        :, k
+    ]  # k-th nearest neighbor (k=1 means 1st neighbor, etc.)
+
+    # Avoid division by very small numbers that cause explosive normalization
+    # Use a conservative threshold - at least 1% of the median k-th distance or 0.01, whichever is larger
+    median_kth_dist = np.median(kth_neighbor_dists)
+    min_threshold = max(0.01, median_kth_dist * 0.1)
+    kth_neighbor_dists = np.maximum(kth_neighbor_dists, min_threshold)
+
+    # Create normalized distance matrix
     norm_dist = np.zeros_like(dists)
-    norm_dist[triu_indices] = dists[triu_indices] / kth_dist[triu_indices[0]]
-    norm_dist += norm_dist.T
+
+    # For each pair (i,j), normalize by the geometric mean of their k-th neighbor distances
+    # This makes the normalization symmetric
+    for i in range(n_points):
+        for j in range(i + 1, n_points):
+            # Geometric mean of the k-th neighbor distances
+            norm_factor = np.sqrt(kth_neighbor_dists[i] * kth_neighbor_dists[j])
+            normalized_distance = dists[i, j] / norm_factor
+            norm_dist[i, j] = normalized_distance
+            norm_dist[j, i] = normalized_distance  # Symmetric
+
     return norm_dist
 
 

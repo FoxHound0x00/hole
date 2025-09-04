@@ -492,7 +492,14 @@ class ComponentEvolutionVisualizer:
         return color_mapping
 
     def plot_sankey(
-        self, key, original_labels=None, ax=None, title=None, gray_second_layer=True
+        self,
+        key,
+        original_labels=None,
+        ax=None,
+        title=None,
+        gray_second_layer=True,
+        show_true_labels_text=True,
+        show_filtration_text=True,
     ):
         """
         Create a 5-stage Sankey diagram:
@@ -749,32 +756,40 @@ class ComponentEvolutionVisualizer:
                 )
                 ax.add_patch(rect)
 
-                # Add labels
+                # Add labels based on flags
                 if (
                     node["height"] > 0.015
                 ):  # Slightly lower threshold for better visibility
-                    if stage_idx == 0 and comp_id in self.class_names:
-                        # Stage 1: CIFAR-10 class names
-                        label_text = self.class_names[comp_id]
-                        font_size = 7 if len(label_text) > 6 else 8
+                    show_text = False
+                    if stage_idx == 0:
+                        # Stage 1: True labels - controlled by show_true_labels_text
+                        show_text = show_true_labels_text
+                        if comp_id in self.class_names:
+                            label_text = self.class_names[comp_id]
+                            font_size = 7 if len(label_text) > 6 else 8
+                        else:
+                            label_text = f"{comp_id}"
+                            font_size = 8
                     else:
-                        # Other stages: cluster IDs
+                        # Other stages: Filtration stages - controlled by show_filtration_text
+                        show_text = show_filtration_text
                         label_text = f"{comp_id}"
                         font_size = 8
 
-                    ax.text(
-                        node["x"],
-                        node["y"],
-                        label_text,
-                        ha="center",
-                        va="center",
-                        fontsize=font_size,
-                        fontweight="bold",
-                        color="white",
-                        rotation=0,
-                    )
+                    if show_text:
+                        ax.text(
+                            node["x"],
+                            node["y"],
+                            label_text,
+                            ha="center",
+                            va="center",
+                            fontsize=font_size,
+                            fontweight="bold",
+                            color="white",
+                            rotation=0,
+                        )
 
-        # Add stage labels with threshold values
+        # Add stage labels with threshold values - BIGGER text for paper
         for i, stage_name in enumerate(stage_names):
             ax.text(
                 x_positions[i],
@@ -782,19 +797,19 @@ class ComponentEvolutionVisualizer:
                 stage_name,
                 ha="center",
                 va="center",
-                fontsize=10,
+                fontsize=14,  # Bigger for paper
                 rotation=0,
-                fontweight="bold",
+                fontweight="normal",  # Remove bold as requested
             )
 
         # Formatting
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.set_xlabel("Cluster Evolution Stages", fontsize=14)
-        ax.set_ylabel("Component Size (Normalized)", fontsize=12)
+        ax.set_xlabel("Cluster Evolution Stages", fontsize=16)  # Bigger for paper
+        ax.set_ylabel("Component Size (Normalized)", fontsize=16)  # Bigger for paper
 
         plot_title = f"Sankey Diagram - {title if title else key}"
-        ax.set_title(plot_title, fontsize=16, pad=20)
+        ax.set_title(plot_title, fontsize=18, pad=20)  # Bigger for paper
 
         # Remove ticks and spines
         ax.set_xticks([])
@@ -805,7 +820,14 @@ class ComponentEvolutionVisualizer:
         return ax
 
     def plot_stacked_bars(
-        self, key, original_labels=None, ax=None, title=None, gray_second_layer=True
+        self,
+        key,
+        original_labels=None,
+        ax=None,
+        title=None,
+        gray_second_layer=True,
+        show_true_labels_text=True,
+        show_filtration_text=True,
     ):
         """
         Create a 5-stage stacked bar chart:
@@ -927,45 +949,53 @@ class ComponentEvolutionVisualizer:
                     linewidth=0.5,
                 )
 
-                # Add component label if significant
+                # Add component label if significant and flags allow
                 if (
                     count > sum(component_counts.values()) * 0.04
                 ):  # Show labels for >4% of total
-                    if stage_idx == 0 and comp_id in unique_labels:
-                        # Stage 1: cluster IDs
+                    show_text = False
+                    if stage_idx == 0:
+                        # Stage 1: True labels - controlled by show_true_labels_text
+                        show_text = show_true_labels_text
                         label_text = f"{comp_id}"
-                        font_size = 8 if len(label_text) <= 6 else 7
-                    else:
-                        # Other stages: cluster IDs
+                        font_size = (
+                            12 if len(label_text) <= 6 else 10
+                        )  # Bigger for paper
+                    elif stage_idx > 1:  # Skip empty separator stage (stage_idx == 1)
+                        # Filtration stages - controlled by show_filtration_text
+                        show_text = show_filtration_text
                         label_text = f"{comp_id}"
-                        font_size = 8
+                        font_size = 12  # Bigger for paper
 
-                    ax.text(
-                        x_positions[stage_idx],
-                        bottom + count / 2,
-                        label_text,
-                        ha="center",
-                        va="center",
-                        fontsize=font_size,
-                        fontweight="bold",
-                        color="white",
-                        rotation=0,
-                    )
+                    if show_text:
+                        ax.text(
+                            x_positions[stage_idx],
+                            bottom + count / 2,
+                            label_text,
+                            ha="center",
+                            va="center",
+                            fontsize=font_size,
+                            fontweight="normal",  # Remove bold as requested
+                            color="white",
+                            rotation=0,
+                        )
 
                 bottom += count
 
-        # Customize plot
-        ax.set_xlabel("Cluster Evolution Stages", fontsize=14)
-        ax.set_ylabel("Component Size", fontsize=14)
-        ax.set_title(
-            f"Stacked Bar Chart - {title if title else key}", fontsize=16, pad=20
-        )
+        # Customize plot - BIGGER fonts for paper
+        ax.set_xlabel("Cluster Evolution Stages", fontsize=16)  # Bigger for paper
+        ax.set_ylabel("Component Size", fontsize=16)  # Bigger for paper
+        # ax.set_title(
+        #     f"Stacked Bar Chart - {title if title else key}", fontsize=18, pad=20  # Bigger for paper
+        # )
 
         # Set x-axis labels with threshold values (skip the empty separator)
         ax.set_xticks(
             [x_positions[0]] + list(x_positions[2:])
         )  # Skip separator position
-        ax.set_xticklabels([stage_names[0]] + stage_names[2:], fontsize=11, rotation=0)
+        ax.set_xticklabels(
+            [stage_names[0]] + stage_names[2:], fontsize=14, rotation=0
+        )  # Bigger for paper
 
         # Set x-axis limits to avoid any weird spacing around the invisible separator
         ax.set_xlim(-0.5, 5.5)
@@ -1007,7 +1037,10 @@ class FlowVisualizer:
         self,
         cluster_evolution: Dict,
         save_path: Optional[str] = None,
-        title: str = "5-Stage Cluster Evolution",
+        # title: str = "5-Stage Cluster Evolution",
+        title: str = None,
+        show_true_labels_text: bool = True,
+        show_filtration_text: bool = True,
     ) -> plt.Figure:
         """
         Plot a 5-stage Sankey diagram showing cluster evolution. using ComponentEvolutionVisualizer
@@ -1016,6 +1049,8 @@ class FlowVisualizer:
             cluster_evolution: Dictionary from ClusterFlowAnalyzer.compute_cluster_evolution()
             save_path: Path to save the figure
             title: Title for the plot
+            show_true_labels_text: Whether to show text labels in true labels blocks
+            show_filtration_text: Whether to show text labels in filtration stage blocks
 
         Returns:
             matplotlib Figure object
@@ -1035,7 +1070,14 @@ class FlowVisualizer:
 
         # Plot Sankey diagram
         for key in components_.keys():
-            visualizer.plot_sankey(key, true_labels, ax, title)
+            visualizer.plot_sankey(
+                key,
+                true_labels,
+                ax,
+                title,
+                show_true_labels_text=show_true_labels_text,
+                show_filtration_text=show_filtration_text,
+            )
             break  # avoid plotting all distance metrics in one plot
 
         if save_path:
@@ -1050,6 +1092,8 @@ class FlowVisualizer:
         cluster_evolution: Dict,
         save_path: Optional[str] = None,
         title: str = "5-Stage Cluster Evolution",
+        show_true_labels_text: bool = True,
+        show_filtration_text: bool = True,
     ) -> plt.Figure:
         """
         Plot a stacked bar chart showing cluster evolution using ComponentEvolutionVisualizer
@@ -1058,6 +1102,8 @@ class FlowVisualizer:
             cluster_evolution: Dictionary from ClusterFlowAnalyzer.compute_cluster_evolution()
             save_path: Path to save the figure
             title: Title for the plot
+            show_true_labels_text: Whether to show text labels in true labels blocks
+            show_filtration_text: Whether to show text labels in filtration stage blocks
 
         Returns:
             matplotlib Figure object
@@ -1078,7 +1124,14 @@ class FlowVisualizer:
 
         # Plot stacked bars
         for key in components_.keys():
-            visualizer.plot_stacked_bars(key, true_labels, ax, title)
+            visualizer.plot_stacked_bars(
+                key,
+                true_labels,
+                ax,
+                title,
+                show_true_labels_text=show_true_labels_text,
+                show_filtration_text=show_filtration_text,
+            )
             break  # so that we only plot one distance metric in one plot
 
         if save_path:
@@ -1230,7 +1283,7 @@ def analyze_activation_flows(
                     sankey_fig = flow_viz.plot_sankey_flow(
                         cluster_evolution,
                         save_path=sankey_path,
-                        title=f"Sankey Diagram - {title_prefix}",
+                        # title=f"Sankey Diagram - {title_prefix}",
                     )
                     plt.close(sankey_fig)
 

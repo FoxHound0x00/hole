@@ -84,6 +84,123 @@ class PersistenceDendrogram:
 
         return self.persistence
 
+    def _compute_rcm_reordering(self, fallback_order=None):
+        """
+        Compute RCM (Reverse Cuthill-McKee) reordering indices for the distance matrix.
+
+        Parameters
+        ----------
+        fallback_order : array-like, optional
+            Fallback ordering to use if RCM fails. If None, uses original order.
+
+        Returns
+        -------
+        reorder_indices : np.ndarray
+            Indices for reordering the distance matrix
+        title_suffix : str
+            Suffix to add to plot titles indicating reordering status
+        """
+        try:
+            # Create sparse matrix from distance matrix (use inverse distances for connectivity)
+            # RCM works on connectivity, so we threshold the distance matrix
+            threshold = np.percentile(
+                self.distance_matrix, 20
+            )  # Connect closest 20% of pairs
+            adjacency = (self.distance_matrix <= threshold).astype(int)
+            np.fill_diagonal(adjacency, 0)  # Remove self-loops
+
+            sparse_adj = csr_matrix(adjacency)
+            rcm_order = reverse_cuthill_mckee(sparse_adj)
+
+            # Use RCM ordering if it gives good results
+            if len(rcm_order) == self.distance_matrix.shape[0]:
+                return rcm_order, " (RCM Reordered)"
+            else:
+                # Fall back to provided order or original order
+                fallback = (
+                    fallback_order
+                    if fallback_order is not None
+                    else np.arange(self.distance_matrix.shape[0])
+                )
+                return fallback, " (No Reordering)"
+
+        except Exception as e:
+            fallback_name = "dendrogram" if fallback_order is not None else "original"
+            print(f"RCM reordering failed: {e}, using {fallback_name} ordering")
+            fallback = (
+                fallback_order
+                if fallback_order is not None
+                else np.arange(self.distance_matrix.shape[0])
+            )
+            return fallback, " (No Reordering)"
+
+    def _plot_reordered_heatmap(self, ax, reorder_indices, cmap="viridis", labels=None):
+        """
+        Plot heatmap with reordered distance matrix.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Axes to plot on
+        reorder_indices : array-like
+            Indices for reordering the distance matrix
+        cmap : str, optional
+            Colormap for the heatmap
+        labels : list, optional
+            Labels for the data points
+
+        Returns
+        -------
+        im : matplotlib.image.AxesImage
+            The image object from imshow
+        """
+        # Reorder distance matrix
+        reordered_dist_matrix = self.distance_matrix[
+            np.ix_(reorder_indices, reorder_indices)
+        ]
+
+        # Plot heatmap
+        im = ax.imshow(
+            reordered_dist_matrix, aspect="auto", cmap=cmap, interpolation="nearest"
+        )
+
+        # Add labels if not too many
+        if labels and len(labels) <= 30:
+            reordered_labels = [labels[i] for i in reorder_indices]
+            ax.set_xticks(range(len(reordered_labels)))
+            ax.set_yticks(range(len(reordered_labels)))
+            ax.set_xticklabels(reordered_labels, rotation=45, ha="right", fontsize=8)
+            ax.set_yticklabels(reordered_labels, fontsize=8)
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+        return im
+
+    def _add_colorbar(self, fig, ax, im, label="Distance"):
+        """
+        Add colorbar to heatmap.
+
+        Parameters
+        ----------
+        fig : matplotlib.figure.Figure
+            Figure object
+        ax : matplotlib.axes.Axes
+            Axes object
+        im : matplotlib.image.AxesImage
+            Image object from imshow
+        label : str, optional
+            Label for the colorbar
+
+        Returns
+        -------
+        cbar : matplotlib.colorbar.Colorbar
+            The colorbar object
+        """
+        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
+        cbar.set_label(label, rotation=270, labelpad=15)
+        return cbar
+
     def build_linkage_matrix_from_persistence(self):
         """Build linkage matrix directly from persistence homology death thresholds."""
         if self.persistence is None:
@@ -220,7 +337,8 @@ class PersistenceDendrogram:
     def plot_dendrogram_with_heatmap(
         self,
         labels=None,
-        title="Persistence Dendrogram",
+        # title="Persistence Dendrogram",
+        title=None,
         figsize=(16, 8),
         cmap="viridis",
     ):
@@ -248,59 +366,20 @@ class PersistenceDendrogram:
         # Get dendrogram ordering
         dendro_order = dendro_result["leaves"]
 
-        # Apply Reverse Cuthill-McKee reordering for better matrix structure
-        try:
-            # Create sparse matrix from distance matrix (use inverse distances for connectivity)
-            # RCM works on connectivity, so we threshold the distance matrix
-            threshold = np.percentile(
-                self.distance_matrix, 20
-            )  # Connect closest 20% of pairs
-            adjacency = (self.distance_matrix <= threshold).astype(int)
-            np.fill_diagonal(adjacency, 0)  # Remove self-loops
+        # Apply RCM reordering with dendrogram as fallback
+        reorder_indices, _ = self._compute_rcm_reordering(fallback_order=dendro_order)
 
-            sparse_adj = csr_matrix(adjacency)
-            rcm_order = reverse_cuthill_mckee(sparse_adj)
-
-            # Use RCM ordering if it gives good results, otherwise fall back to dendrogram
-            if len(rcm_order) == self.distance_matrix.shape[0]:
-                reorder_indices = rcm_order
-            else:
-                reorder_indices = dendro_order
-
-        except Exception as e:
-            print(f"RCM reordering failed: {e}, using dendrogram ordering")
-            reorder_indices = dendro_order
-
-        # Reorder distance matrix
-        reordered_dist_matrix = self.distance_matrix[
-            np.ix_(reorder_indices, reorder_indices)
-        ]
-
-        # Plot heatmap
-        im = ax_heatmap.imshow(
-            reordered_dist_matrix, aspect="auto", cmap=cmap, interpolation="nearest"
+        # Plot heatmap using helper method
+        im = self._plot_reordered_heatmap(
+            ax_heatmap, reorder_indices, cmap=cmap, labels=labels
         )
-
-        # Add labels if not too many
-        if labels and len(labels) <= 30:
-            reordered_labels = [labels[i] for i in reorder_indices]
-            ax_heatmap.set_xticks(range(len(reordered_labels)))
-            ax_heatmap.set_yticks(range(len(reordered_labels)))
-            ax_heatmap.set_xticklabels(
-                reordered_labels, rotation=45, ha="right", fontsize=8
-            )
-            ax_heatmap.set_yticklabels(reordered_labels, fontsize=8)
-        else:
-            ax_heatmap.set_xticks([])
-            ax_heatmap.set_yticks([])
 
         ax_heatmap.set_title("Distance Matrix (RCM Reordered)")
         ax_heatmap.set_xlabel("Data Points")
         ax_heatmap.set_ylabel("Data Points")
 
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax_heatmap, shrink=0.8)
-        cbar.set_label("Distance", rotation=270, labelpad=15)
+        # Add colorbar using helper method
+        self._add_colorbar(fig, ax_heatmap, im)
 
         # Set main title
         fig.suptitle(title, fontsize=14, y=0.98)
@@ -308,6 +387,58 @@ class PersistenceDendrogram:
         plt.tight_layout()
         plt.subplots_adjust(top=0.92)  # Add space for main title
         return fig, dendro_result
+
+    def plot_rcm_heatmap(
+        self,
+        labels=None,
+        title="Distance Matrix (RCM Reordered)",
+        figsize=(10, 8),
+        cmap="viridis",
+        ax=None,
+    ):
+        """
+        Plot standalone distance matrix heatmap using RCM reordering.
+
+        Parameters
+        ----------
+        labels : list, optional
+            Labels for the data points
+        title : str, optional
+            Title for the heatmap
+        figsize : tuple, optional
+            Figure size (width, height)
+        cmap : str, optional
+            Colormap for the heatmap
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on. If None, creates new figure and axes.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing the heatmap
+        ax : matplotlib.axes.Axes
+            The axes object containing the heatmap
+        """
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+        else:
+            fig = ax.figure
+
+        # Apply RCM reordering
+        reorder_indices, title_suffix = self._compute_rcm_reordering()
+
+        # Plot heatmap using helper method
+        im = self._plot_reordered_heatmap(ax, reorder_indices, cmap=cmap, labels=labels)
+
+        ax.set_title(title + title_suffix)
+        ax.set_xlabel("Data Points")
+        ax.set_ylabel("Data Points")
+
+        # Add colorbar using helper method
+        self._add_colorbar(fig, ax, im)
+
+        plt.tight_layout()
+        return fig, ax
 
     def analyze_cluster_evolution(self):
         """Analyze how clusters evolve at different death thresholds."""
@@ -460,7 +591,7 @@ def analyze_activation_persistence(
                             title_prefix = f"{model_name.replace('_', ' ').title()} - {condition_name.replace('_', ' ').title()}"
 
                     # Generate dendrogram WITH RCM-reordered heatmap
-                    fig = pd.plot_dendrogram_with_heatmap(
+                    pd.plot_dendrogram_with_heatmap(
                         labels=labels,
                         title=f"ViT {title_prefix} - {dist_name} - {layer_name}",
                         figsize=(16, 8),

@@ -15,9 +15,6 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.manifold import MDS, TSNE
 
-# Import from core
-from ..core.distance_metrics import distance_matrix, euclidean
-
 
 def plot_persistence_barcode(
     persistence: List[Tuple],
@@ -317,6 +314,8 @@ def plot_dimensionality_reduction(
                 else:
                     # Fallback to HSV generation
                     hue = (i * 0.618033988749895) % 1.0
+                    import matplotlib.colors as mcolors
+
                     colors.append(mcolors.hsv_to_rgb([hue, 0.7, 0.9]) + (1.0,))
 
         label_to_color = {}
@@ -332,7 +331,7 @@ def plot_dimensionality_reduction(
         point_colors = "blue"
 
     # Create scatter plot
-    scatter = ax.scatter(
+    ax.scatter(
         coords_2d[:, 0],
         coords_2d[:, 1],
         c=point_colors,
@@ -362,7 +361,6 @@ def plot_dimensionality_reduction(
         ax.legend(
             handles=legend_elements,
             title="Labels",
-            bbox_to_anchor=(1.05, 1),
             loc="upper left",
         )
 
@@ -373,6 +371,10 @@ def plot_dimensionality_reduction(
     if title is None:
         title = f"{method.upper()} Visualization"
     ax.set_title(title, fontsize=14, pad=20)
+
+    # Remove ticks but keep axes
+    ax.set_xticks([])
+    ax.set_yticks([])
 
     ax.grid(True, alpha=0.3)
 
