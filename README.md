@@ -19,7 +19,7 @@ A Python library for topological data analysis and visualization of deep learnin
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/hole.git
+git clone https://github.com/FoxHound0x00/hole
 cd hole
 
 # Install with pip
@@ -64,14 +64,12 @@ viz = hole.HOLEVisualizer(distance_matrix_input=euclidean_dist)
 
 The `examples/` directory contains several examples:
 
-- **`simple_example.py`** - Basic usage (recommended starting point)
-- **`distance_metrics_example.py`** - Comparing different distance metrics  
-- **`cluster_analysis_example.py`** - Cluster evolution analysis
-- **`comprehensive_example.py`** - Advanced features demonstration
+- **`hole_example.py`** - Basic usage showcasing core HOLE visualizations (recommended starting point)
+- **`distance_metrics.py`** - Comprehensive analysis across different distance metrics and data structures
 
 ```bash
 cd examples/
-python simple_example.py
+python hole_example.py
 ```
 
 ## API Reference
