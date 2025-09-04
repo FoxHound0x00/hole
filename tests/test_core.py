@@ -5,7 +5,6 @@ Tests for core functionality including persistence computation and MST processin
 import warnings
 
 import numpy as np
-import pytest
 
 from hole.core.mst_processor import MSTProcessor
 from hole.core.persistence import compute_persistence, extract_death_thresholds
@@ -40,9 +39,7 @@ class TestPersistenceComputation:
             assert len(p[1]) == 2
             birth, death = p[1]
             assert isinstance(birth, (float, np.floating))  # birth
-            assert isinstance(death, (float, np.floating)) or np.isinf(
-                death
-            )  # death or inf
+            assert isinstance(death, (float, np.floating)) or np.isinf(death)
 
     def test_compute_persistence_parameters(self):
         """Test persistence computation with different parameters."""
