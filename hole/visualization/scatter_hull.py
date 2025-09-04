@@ -20,7 +20,6 @@ from scipy.spatial import ConvexHull
 from scipy.spatial import distance_matrix as scipy_distance_matrix
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
-from sklearn.manifold import MDS, TSNE
 
 
 def generate_consistent_colors(n_colors: int = 20, include_noise: bool = True) -> List:
@@ -656,6 +655,141 @@ class BlobVisualizer:
 
         return results
 
+    def plot_pca_with_cluster_hulls(
+        self,
+        points: np.ndarray,
+        true_labels: np.ndarray,
+        threshold: float,
+        save_path: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> plt.Figure:
+        """
+        Create PCA plot with points colored by true labels and convex hulls for clusters at threshold.
+
+        Args:
+            points: Input data points (n_samples, n_features)
+            true_labels: True class labels for coloring points
+            threshold: Distance threshold for clustering
+            save_path: Optional path to save the plot
+            title: Optional title for the plot
+
+        Returns:
+            matplotlib Figure object
+        """
+        from matplotlib.patches import Polygon
+        from scipy.spatial import ConvexHull
+        from sklearn.cluster import AgglomerativeClustering
+        from sklearn.decomposition import PCA
+
+        # Apply PCA for 2D visualization
+        pca = PCA(n_components=2, random_state=42)
+        points_2d = pca.fit_transform(points)
+
+        # Get cluster assignments at threshold
+        clustering = AgglomerativeClustering(
+            n_clusters=None, distance_threshold=threshold, linkage="single"
+        )
+        cluster_labels = clustering.fit_predict(points)
+
+        # Create the visualization
+        fig, ax = plt.subplots(1, 1, figsize=self.figsize)
+
+        # Define colors for true classes
+        class_colors = [
+            "red",
+            "blue",
+            "green",
+            "orange",
+            "purple",
+            "brown",
+            "pink",
+            "gray",
+        ]
+
+        # Define colors for cluster hulls
+        hull_colors = [
+            "lightblue",
+            "lightcoral",
+            "lightgreen",
+            "lightyellow",
+            "lightpink",
+            "lightcyan",
+            "lightgray",
+            "lightsalmon",
+            "lightsteelblue",
+            "lightgoldenrodyellow",
+        ]
+
+        # Plot convex hulls for each cluster (behind points)
+        unique_clusters = np.unique(cluster_labels)
+        for cluster_id in unique_clusters:
+            cluster_mask = cluster_labels == cluster_id
+            cluster_points_2d = points_2d[cluster_mask]
+
+            if len(cluster_points_2d) >= 3:  # Need at least 3 points for ConvexHull
+                try:
+                    hull = ConvexHull(cluster_points_2d)
+                    hull_points = cluster_points_2d[hull.vertices]
+
+                    # Add padding to make blobs thicker
+                    center = np.mean(hull_points, axis=0)
+                    padded_points = center + (hull_points - center) * 1.3
+
+                    # Create polygon for the blob with distinct color per cluster
+                    cluster_color = hull_colors[cluster_id % len(hull_colors)]
+                    polygon = Polygon(
+                        padded_points,
+                        alpha=self.alpha_hull,
+                        facecolor=cluster_color,
+                        edgecolor="darkblue",
+                        linewidth=2,
+                        linestyle="-",
+                    )
+                    ax.add_patch(polygon)
+                except Exception:
+                    # Fallback for degenerate cases
+                    pass
+
+        # Plot data points colored by TRUE classes (on top of blobs) - BIGGER for paper
+        for class_id in np.unique(true_labels):
+            class_mask = true_labels == class_id
+            ax.scatter(
+                points_2d[class_mask, 0],
+                points_2d[class_mask, 1],
+                c=class_colors[class_id % len(class_colors)],
+                s=120,
+                alpha=0.8,
+                edgecolors="black",
+                linewidth=0.8,
+            )  # Bigger points, no label
+
+        # Set labels and title - BIGGER fonts for paper
+        ax.set_xlabel(
+            f"PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)", fontsize=14
+        )
+        ax.set_ylabel(
+            f"PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)", fontsize=14
+        )
+
+        if title is None:
+            title = f"HOLE Blob Visualization: PCA + Cluster Hulls (Threshold: {threshold:.3f})"
+        ax.set_title(title, fontsize=16, fontweight="bold")
+
+        # Remove ticks but keep axes
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        # NO legend and NO grid for paper quality
+
+        plt.tight_layout()
+
+        # Save if path provided
+        if save_path:
+            fig.savefig(save_path, dpi=self.dpi, bbox_inches="tight")
+            print(f"Saved blob visualization: {save_path}")
+
+        return fig
+
 
 def analyze_activation_blobs(
     activation_file: str,
@@ -854,7 +988,7 @@ def run_blob_analysis_on_results(
         possible_paths = [
             f"{results_dir}/test_labels.npy",  # New location for compression analysis
             f"{results_dir}/../results/original/true_labels.npy",
-            f"results/original/true_labels.npy",
+            "results/original/true_labels.npy",
             f"{results_dir}/original/true_labels.npy",
         ]
 
@@ -870,7 +1004,8 @@ def run_blob_analysis_on_results(
     else:
         print(f"Warning: True labels not found in any expected location")
         print(
-            f"Searched: {possible_paths if 'possible_paths' in locals() else [labels_file]}"
+            f"Searched: {possible_paths if 'possible_paths' 
+                in locals() else [labels_file]}"
         )
         return
 
