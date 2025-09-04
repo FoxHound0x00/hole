@@ -34,7 +34,11 @@ def main():
     # Create centers that are FAR apart
     centers = np.array([[-8, -8, -8], [8, -8, 8], [-8, 8, 8], [8, 8, -8]])
     points, labels = make_blobs(
-        n_samples=120, centers=centers, n_features=3, cluster_std=0.8, random_state=42
+        n_samples=120, 
+        centers=centers, 
+        n_features=3, 
+        cluster_std=0.8, 
+        random_state=42,
     )
     print(
         f"Created {len(points)} points with {points.shape[1]} features in 4 well-separated clusters\n"
@@ -239,18 +243,18 @@ def main():
         )
         plt.close(fig)
 
-    print(f"\n=== HOLE Simple Example Complete ===")
+    print("\n=== HOLE Simple Example Complete ===")
     print(f"All visualizations saved to: {output_dir}/")
-    print(f"Organized in subfolders:")
+    print(" Organized in subfolders:")
     print(f"  📁 {output_dir}/core/ - Core HOLE visualizations")
     print(f"  📁 {output_dir}/mds/ - MDS plots for all distance metrics")
     print(f"  📁 {output_dir}/heatmaps/ - Distance matrix heatmaps")
-    print(f"")
-    print(f"Key HOLE capabilities demonstrated:")
-    print(f"  ✓ Heatmap Dendrograms - Core topological structure")
-    print(f"  ✓ Blob Visualizations - Cluster separation analysis")
-    print(f"  ✓ Sankey Flow Diagrams - Cluster evolution tracking")
-    print(f"  ✓ Persistence Analysis - Traditional TDA")
+    print("")
+    print("Key HOLE capabilities demonstrated:")
+    print("  ✓ Heatmap Dendrograms - Core topological structure")
+    print("  ✓ Blob Visualizations - Cluster separation analysis")
+    print("  ✓ Sankey Flow Diagrams - Cluster evolution tracking")
+    print("  ✓ Persistence Analysis - Traditional TDA")
     print(
         f"  ✓ Distance Metrics - {len(distance_matrices)} metrics with MDS + heatmaps"
     )

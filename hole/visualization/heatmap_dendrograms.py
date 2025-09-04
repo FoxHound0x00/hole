@@ -1,5 +1,4 @@
 import os
-from collections import defaultdict, deque
 
 import gudhi as gd
 import matplotlib.pyplot as plt
@@ -8,12 +7,7 @@ import numpy as np
 from scipy.cluster.hierarchy import dendrogram
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
-from scipy.spatial.distance import squareform
-from sklearn.datasets import make_blobs
 from sklearn.metrics import pairwise_distances
-
-# Import distance_matrix from core
-from ..core.distance_metrics import distance_matrix
 
 
 class UnionFind:
@@ -511,7 +505,7 @@ def analyze_activation_persistence(
     # Import MST processor for distance calculations
     from mst_proc import MSTProcessor
 
-    from hole.visualization.pers_bcd import distance_matrix
+    from ..core.distance_metrics import distance_matrix
 
     # Process each layer
     for layer_name, activation_data in all_activations.items():
