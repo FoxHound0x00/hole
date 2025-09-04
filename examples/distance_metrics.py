@@ -25,12 +25,12 @@ For each combination, generates:
 import os
 import warnings
 
+warnings.filterwarnings("ignore")
+
+
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.cluster import SpectralClustering
-from sklearn.datasets import make_blobs, make_circles, make_swiss_roll
-
-warnings.filterwarnings("ignore")
+from sklearn.datasets import make_blobs, make_swiss_roll
 
 from hole.core import distance_metrics
 from hole.visualization.cluster_flow import (
@@ -43,7 +43,12 @@ from hole.visualizer import HOLEVisualizer
 np.random.seed(42)
 
 
-def create_isotropic_clusters(n_samples=500, dense=True, outliers=True, separable=True):
+def create_isotropic_clusters(
+    n_samples=500,
+    dense=True,
+    outliers=True,
+    separable=True,
+):
     """Create isotropic (spherical) clusters with different characteristics."""
     n_features = 10
     n_centers = 4
@@ -79,7 +84,12 @@ def create_isotropic_clusters(n_samples=500, dense=True, outliers=True, separabl
     return X, y
 
 
-def create_hypersphere(n_samples=500, dense=True, outliers=True, separable=True):
+def create_hypersphere(
+    n_samples=500,
+    dense=True,
+    outliers=True,
+    separable=True,
+):
     """Create hypersphere structure with different characteristics."""
     n_features = 8
 
@@ -143,7 +153,10 @@ def create_hypersphere(n_samples=500, dense=True, outliers=True, separable=True)
 
 
 def create_elliptical_clusters(
-    n_samples=500, dense=True, outliers=True, separable=True
+    n_samples=500,
+    dense=True,
+    outliers=True,
+    separable=True,
 ):
     """Create elliptical clusters with different characteristics."""
     n_features = 6
@@ -201,9 +214,13 @@ def create_elliptical_clusters(
 
 
 def create_swiss_roll_structure(
-    n_samples=500, dense=True, outliers=True, separable=True
+    n_samples=500,
+    dense=True,
+    outliers=True,
+    separable=True,
 ):
-    """Create Swiss roll manifold structure with different characteristics."""
+    """Create Swiss roll manifold structure
+    with different characteristics."""
     if dense:
         noise = 0.1 if separable else 0.4
     else:
@@ -248,7 +265,10 @@ def create_swiss_roll_structure(
     return X, y
 
 
-def create_tight_blobs(n_samples=500, outliers=True):
+def create_tight_blobs(
+    n_samples=500,
+    outliers=True,
+):
     """Create very tight, well-separated blobs."""
     n_features = 8
     n_centers = 5
@@ -322,7 +342,12 @@ def compute_all_distance_matrices(X):
 
 
 def generate_all_visualizations(
-    X, y, distance_matrices, structure_name, variant_name, base_dir
+    X,
+    y,
+    distance_matrices,
+    structure_name,
+    variant_name,
+    base_dir,
 ):
     """Generate all visualizations for each distance metric."""
     variant_dir = os.path.join(base_dir, structure_name, variant_name)
