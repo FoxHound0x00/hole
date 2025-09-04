@@ -60,12 +60,11 @@ class TestHOLEVisualizer:
             invalid_matrix = np.random.rand(20, 15)
             HOLEVisualizer(distance_matrix_input=invalid_matrix)
 
-        # Invalid distance matrix (not symmetric)
+        # Invalid distance matrix (not symmetric) - should still work but warn
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")  # Suppress the warning we're testing
+            warnings.simplefilter("ignore")
             asymmetric_matrix = np.random.rand(10, 10)
-            viz = HOLEVisualizer(distance_matrix_input=asymmetric_matrix)
-            # Should still work but issue warning
+            HOLEVisualizer(distance_matrix_input=asymmetric_matrix)
 
     def test_distance_metrics(self):
         """Test different distance metrics."""

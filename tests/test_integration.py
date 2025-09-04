@@ -267,7 +267,6 @@ class TestExampleCompatibility:
         dendro_viz = viz.get_persistence_dendrogram_visualizer(
             distance_matrix=viz.distance_matrix
         )
-        analyzer = ClusterFlowAnalyzer(viz.distance_matrix, max_thresholds=3)
 
         # 3. Generate visualizations
         with tempfile.TemporaryDirectory() as temp_dir:
