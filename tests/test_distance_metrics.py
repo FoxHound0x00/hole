@@ -7,7 +7,6 @@ import warnings
 import numpy as np
 import pytest
 
-import hole
 from hole.core.distance_metrics import (
     chebyshev_distance,
     cosine_distance,
@@ -247,9 +246,7 @@ class TestDistanceMetrics:
         """Test Mahalanobis distance with singular covariance matrix."""
         # Create data with perfectly correlated features
         base_data = np.random.rand(10, 1)
-        correlated_data = np.hstack(
-            [base_data, base_data, base_data]
-        )  # All columns identical
+        correlated_data = np.hstack([base_data, base_data, base_data])
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
