@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Comprehensive experiments to understand different distance metrics. 
-
 Distance Metrics:
 - Euclidean, Mahalanobis, Cosine
 - Density-normalized variants: dn_euclidean, dn_mahalanobis, dn_cosine
@@ -510,9 +509,9 @@ def generate_all_visualizations(
                                 f"        ! Not enough thresholds for blob visualization: {len(thresholds)}"
                             )
                     else:
-                        print(f"        ! No labels found in cluster evolution")
+                        print("        ! No labels found in cluster evolution")
                 else:
-                    print(f"        ! No cluster evolution data for blob visualization")
+                    print("        ! No cluster evolution data for blob visualization")
             except Exception as e:
                 print(f"        ! Blob visualization failed for {metric_name}: {e}")
 
