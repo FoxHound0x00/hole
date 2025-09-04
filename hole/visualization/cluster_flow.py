@@ -1,24 +1,21 @@
 """
 Flow Visualization for Persistent Homology Cluster Evolution
 
-This module provides Sankey diagrams and stacked bar charts to show how clusters 
+This module provides Sankey diagrams and stacked bar charts to show how clusters
 evolve through different death thresholds in persistent homology filtration.
 Based on the reference ComponentEvolutionVisualizer implementation.
 """
 
 import os
 from collections import Counter, defaultdict
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import gudhi as gd
 import matplotlib.colors as mcolors
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import seaborn as sns
-from matplotlib.patches import FancyBboxPatch, Rectangle
-from scipy.spatial.distance import pdist, squareform
+from matplotlib.patches import FancyBboxPatch
 from tqdm import tqdm
 
 # Import distance_matrix from core
@@ -178,7 +175,7 @@ class ClusterFlowAnalyzer:
         # Remove duplicates and sort
         selected = sorted(list(set(selected)))
 
-        print(f"Selected thresholds breakdown:")
+        print("Selected thresholds breakdown:")
         print(f"  Initial (many clusters): {selected[0]:.4f}")
         if len(selected) > 1:
             print(f"  Similar to true labels: {selected[1]:.4f}")
@@ -373,7 +370,7 @@ class ComponentEvolutionVisualizer:
         ]
 
         # Special handling for noise/unclustered points (-1)
-        noise_color = (0.5, 0.5, 0.5, 1.0)  # Gray color for noise
+        # noise_color = (0.5, 0.5, 0.5, 1.0)  # Gray color for noise
 
         # If we have original labels, assign colors for them first
         if original_labels is not None:
@@ -394,7 +391,6 @@ class ComponentEvolutionVisualizer:
                     colors.append(base_cmap(i % 20))
 
         # Fill remaining colors from discrete colormaps
-        color_idx = 0
         cmap_idx = 0
 
         while len(colors) < n_colors and cmap_idx < len(discrete_colormaps):
@@ -894,9 +890,9 @@ class ComponentEvolutionVisualizer:
             [0, 1.5, 2.0, 3.0, 4.0, 5.0]
         )  # Smaller gap after true labels, then consecutive
         bar_width = 1.0  # Make bars stick together by using full width
-        n_stages = len(stage_names)
+        # n_stages = len(stage_names)
         # Get unique true labels
-        unique_labels = sorted(set(original_labels))
+        # unique_labels = sorted(set(original_labels))
 
         # Process each stage
         stage_data = []
@@ -938,7 +934,7 @@ class ComponentEvolutionVisualizer:
                     color = self.color_mapping[comp_id]
 
                 # Create bar segment
-                bar = ax.bar(
+                ax.bar(
                     x_positions[stage_idx],
                     count,
                     bottom=bottom,

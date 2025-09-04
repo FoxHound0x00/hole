@@ -2,23 +2,18 @@
 Blob Visualization for Cluster Separation Analysis
 
 This module provides visualization of cluster separation at specific distance thresholds
-from persistent homology cluster evolution. Shows t-SNE, PCA, and MDS plots with 
+from persistent homology cluster evolution. Shows t-SNE, PCA, and MDS plots with
 nodes colored by true labels and convex hulls around cluster assignments.
 """
 
 import os
-from collections import Counter
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-from matplotlib.collections import LineCollection
 from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull
-from scipy.spatial import distance_matrix as scipy_distance_matrix
-from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
 
 
@@ -257,7 +252,7 @@ class BlobVisualizer:
             for i in range(n_vertices):
                 current = expanded_vertices[i]
                 next_vertex = expanded_vertices[(i + 1) % n_vertices]
-                prev_vertex = expanded_vertices[(i - 1) % n_vertices]
+                # prev_vertex = expanded_vertices[(i - 1) % n_vertices]
 
                 # Add the current vertex
                 smooth_points.append(current)
@@ -1002,11 +997,8 @@ def run_blob_analysis_on_results(
         true_labels = np.load(labels_file)
         print(f"Loaded true labels from {labels_file}")
     else:
-        print(f"Warning: True labels not found in any expected location")
-        print(
-            f"Searched: {possible_paths if 'possible_paths' 
-                in locals() else [labels_file]}"
-        )
+        print("Warning: True labels not found in any expected location")
+        print(f"Searched: {[labels_file]}")
         return
 
     # Process each model directory
