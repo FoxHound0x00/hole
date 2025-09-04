@@ -2,53 +2,36 @@
 
 This directory contains examples demonstrating the HOLE library functionality.
 
-## Quick Start Examples
+## Available Examples
 
-### 1. `simple_example.py`
+### 1. `hole_example.py`
 **Recommended starting point** - Shows HOLE's core visualization capabilities.
 - Sankey diagrams for cluster evolution
 - Stacked bar charts for threshold analysis  
 - Heatmap dendrograms for distance matrices
 - Blob visualizations with convex hulls
+- Persistence diagrams and barcodes
+- MDS plots for all distance metrics
 - Demonstrates what makes HOLE unique
 
-### 2. `distance_metrics_example.py` 
-Compare different distance metrics (Euclidean, cosine, Manhattan).
-- 30 lines of code  
-- Demonstrates metric selection
-- Shows impact of different distance functions
-
-### 3. `cluster_analysis_example.py`
-Analyze cluster evolution through persistent homology.
-- 40 lines of code
-- Shows cluster flow analysis
-- Good for understanding topological clustering
-
-## Advanced Example
-
-### 4. `comprehensive_example.py`
-**Advanced users only** - Comprehensive demonstration of ALL library features.
-- 425 lines of code
-- Multiple distance metrics
-- All visualization types
-- Can be overwhelming for beginners
+### 2. `distance_metrics.py` 
+**Advanced comprehensive analysis** - Systematic comparison across data structures and metrics.
+- ~800 lines of code
+- 5 different data structures (isotropic clusters, hypersphere, elliptical, Swiss roll, tight blobs)
+- 7 distance metrics (euclidean, cosine, mahalanobis, density-normalized variants, geodesic)
+- Generates complete visualization suites for each combination
+- Produces extensive analysis results
 
 ## Running Examples
 
 ```bash
 cd examples/
 
-# Start with the simple example
-python simple_example.py
+# Start with the basic example (recommended)
+python hole_example.py
 
-# Try different distance metrics  
-python distance_metrics_example.py
-
-# Explore cluster analysis
-python cluster_analysis_example.py
-
-# For advanced features (takes longer to run)
-python comprehensive_example.py
+# For comprehensive analysis (takes much longer, generates extensive results)
+python distance_metrics.py
 ```
 
 ## Output
