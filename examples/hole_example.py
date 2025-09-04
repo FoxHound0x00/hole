@@ -1,7 +1,8 @@
 """
 Simple HOLE Library Usage Example
 
-This demonstrates the core visualizations that make HOLE powerful for topological data analysis.
+This demonstrates the core visualizations that make 
+HOLE powerful for topological data analysis.
 Shows heatmap dendrograms, blob visualizations, and cluster flow analysis.
 """
 
@@ -34,10 +35,10 @@ def main():
     # Create centers that are FAR apart
     centers = np.array([[-8, -8, -8], [8, -8, 8], [-8, 8, 8], [8, 8, -8]])
     points, labels = make_blobs(
-        n_samples=120, 
-        centers=centers, 
-        n_features=3, 
-        cluster_std=0.8, 
+        n_samples=120,
+        centers=centers,
+        n_features=3,
+        cluster_std=0.8,
         random_state=42,
     )
     print(
