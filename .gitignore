@@ -186,3 +186,6 @@ tmp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Model weights
+**/evals/
