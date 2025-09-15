@@ -5,15 +5,13 @@ This class automatically computes persistent homology when initialized and provi
 access to all visualization functions for homological observation of latent embeddings.
 """
 
-import logging
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+from loguru import logger
 
 from .core.distance_metrics import distance_matrix
-
-logger = logging.getLogger(__name__)
 
 # Import from core and utils
 from .core.persistence import (

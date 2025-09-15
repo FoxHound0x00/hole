@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+from loguru import logger
 from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
@@ -206,7 +207,7 @@ class BlobVisualizer:
             return np.array(expanded_vertices)
 
         except Exception as e:
-            print(f"    Warning: Could not compute convex hull: {e}")
+            logger.warning(f"Could not compute convex hull: {e}")
             return None
 
     def _compute_smooth_hull(
@@ -834,12 +835,12 @@ def analyze_activation_blobs(
         return {}
 
     if true_labels is None:
-        print("Warning: No true labels provided, skipping blob analysis")
+        logger.warning("No true labels provided, skipping blob analysis")
         return {}
 
     # Import required modules
-    from mst_proc import MSTProcessor
-    from vis.flow_visualization import ClusterFlowAnalyzer
+    from ..core.mst_processor import MSTProcessor
+    from .cluster_flow import ClusterFlowAnalyzer
 
     from hole.core.distance_metrics import distance_matrix
 

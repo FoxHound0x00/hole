@@ -5,11 +5,15 @@ A library for topological analysis and
 visualization of deep learning representations.
 """
 
-import logging
+from loguru import logger
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure loguru for the HOLE package
+logger.add(
+    sink=lambda msg: print(msg, end=""),  # Print to stdout
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="INFO",
+    colorize=True
+)
 
 # Core functionality
 from . import core, utils, visualization
