@@ -8,6 +8,7 @@ including Euclidean, Manhattan, Chebyshev, Cosine, and Mahalanobis variants.
 from typing import Callable, Optional, Union
 
 import numpy as np
+from loguru import logger
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
 from sklearn.metrics import pairwise_distances
@@ -180,18 +181,33 @@ def mahalanobis_distance(
     Returns:
         Symmetric distance matrix of shape (n_samples, n_samples)
     """
-    # Apply PCA if data is high-dimensional or if we have too few samples
-    # Use fewer components to avoid numerical instability
+    # Apply PCA if data is high-dimensional or if we have insufficient samples for stable covariance estimation
     n_samples, n_features = X.shape
-    max_components = min(pca_components, n_samples - 2, n_features)
-
-    if n_features > max_components or n_samples < n_features * 2:
-        if max_components < 2:
-            # Too few samples, fallback to Euclidean
-            print("Warning: Too few samples for Mahalanobis distance, using Euclidean")
+    
+    # Rule: Need at least n_features + 1 samples for non-singular covariance matrix
+    # But in practice, we want more for numerical stability
+    min_samples_needed = max(n_features + 5, int(n_features * 1.5))
+    
+    # Determine if we need dimensionality reduction
+    needs_pca = (n_features > pca_components) or (n_samples < min_samples_needed)
+    
+    if needs_pca:
+        # Calculate safe number of components
+        max_safe_components = min(
+            pca_components,
+            n_samples - 5,  # Leave some buffer for numerical stability
+            n_features
+        )
+        
+        if max_safe_components < 2:
+            # Too few samples for any meaningful analysis
+            logger.warning(f"Insufficient samples ({n_samples}) for Mahalanobis distance with {n_features} features, using Euclidean")
             return euclidean_distance(X)
-
-        pca = PCA(n_components=max_components)
+        
+        if max_safe_components < n_features:
+            logger.info(f"Reducing dimensionality from {n_features} to {max_safe_components} features for stable Mahalanobis computation")
+        
+        pca = PCA(n_components=max_safe_components)
         X_processed = pca.fit_transform(X)
     else:
         X_processed = X.copy()
@@ -208,22 +224,22 @@ def mahalanobis_distance(
         try:
             cond_num = np.linalg.cond(cov_matrix)
             if cond_num > 1e12:
-                print(
-                    f"Warning: Covariance matrix is poorly conditioned (cond={cond_num:.2e}), using regularization"
+                logger.warning(
+                    f"Covariance matrix is poorly conditioned (cond={cond_num:.2e}), using regularization"
                 )
                 cov_matrix += np.eye(cov_matrix.shape[0]) * reg_factor * 100
 
             cov_inv = np.linalg.inv(cov_matrix)
         except np.linalg.LinAlgError:
             # Fallback to pseudo-inverse with stronger regularization
-            print("Warning: Using pseudo-inverse for covariance matrix")
+            logger.warning("Using pseudo-inverse for covariance matrix")
             cov_inv = np.linalg.pinv(cov_matrix, rcond=1e-10)
 
     try:
         # Use chunked computation for large datasets to avoid memory issues
         if n_samples > 1000:
-            print(
-                "Warning: Large dataset detected, using chunked Mahalanobis computation"
+            logger.warning(
+                "Large dataset detected, using chunked Mahalanobis computation"
             )
             return _chunked_mahalanobis_distance(X_processed, cov_inv)
         else:
@@ -231,8 +247,8 @@ def mahalanobis_distance(
             return squareform(distances)
     except (np.linalg.LinAlgError, ValueError, MemoryError) as e:
         # Fallback to Euclidean distance
-        print(
-            f"Warning: Mahalanobis distance computation failed ({e}), falling back to Euclidean"
+        logger.warning(
+            f"Mahalanobis distance computation failed ({e}), falling back to Euclidean"
         )
         return euclidean_distance(X_processed)
 
@@ -269,29 +285,134 @@ def _chunked_mahalanobis_distance(
 
 
 def floyd_warshall(dist_matrix):
+    """
+    Compute shortest paths between all pairs of vertices using Floyd-Warshall algorithm.
+    
+    Args:
+        dist_matrix: Distance matrix (must be square, symmetric, non-negative)
+        
+    Returns:
+        Matrix of shortest path distances
+        
+    Raises:
+        ValueError: If input matrix is invalid
+    """
+    if dist_matrix.ndim != 2:
+        raise ValueError("Distance matrix must be 2-dimensional")
+    
+    if dist_matrix.shape[0] != dist_matrix.shape[1]:
+        raise ValueError("Distance matrix must be square")
+    
+    if np.any(dist_matrix < 0):
+        raise ValueError("Distance matrix cannot contain negative values")
+    
+    if not np.allclose(np.diag(dist_matrix), 0, atol=1e-10):
+        logger.warning("Distance matrix diagonal is not zero, this may indicate invalid distance matrix")
+    
+    if not np.allclose(dist_matrix, dist_matrix.T, rtol=1e-10):
+        logger.warning("Distance matrix is not symmetric, results may be incorrect")
+    
     n = dist_matrix.shape[0]
     dist = dist_matrix.copy()
+    
+    # Floyd-Warshall algorithm with progress tracking for large matrices
+    if n > 100:
+        logger.info(f"Computing shortest paths for {n}x{n} matrix using Floyd-Warshall")
+    
     for k in range(n):
         dist = np.minimum(dist, dist[:, k, None] + dist[None, k, :])
+        
+        # Progress logging for large matrices
+        if n > 500 and k % (n // 10) == 0:
+            logger.debug(f"Floyd-Warshall progress: {k}/{n} ({100*k/n:.1f}%)")
+    
     return dist
 
 
-def geodesic_distances(X, k=10):
+def geodesic_distances(X, k=10, method='auto'):
+    """
+    Compute geodesic distances using k-nearest neighbor graph and shortest paths.
+    
+    Args:
+        X: Input data array of shape (n_samples, n_features)
+        k: Number of nearest neighbors for graph construction
+        method: Method for shortest path computation ('auto', 'floyd_warshall', 'dijkstra')
+        
+    Returns:
+        Geodesic distance matrix
+    """
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import shortest_path
+    
+    n_samples = X.shape[0]
+    
+    if k >= n_samples:
+        logger.warning(f"k={k} >= n_samples={n_samples}, using k={n_samples-1}")
+        k = n_samples - 1
+    
+    # Compute Euclidean distance matrix efficiently
     D = euclidean_distance(X)
-    n = D.shape[0]
-
-    # Build sparse kNN graph manually
-    knn_graph = np.full_like(D, np.inf)
-    for i in range(n):
-        idx = np.argsort(D[i])[1 : k + 1]  # Exclude self
-        knn_graph[i, idx] = D[i, idx]
-
-    # Symmetrize
-    knn_graph = np.minimum(knn_graph, knn_graph.T)
-
-    # Floyd-Warshall for shortest paths
-    geo_dist = floyd_warshall(knn_graph)
-    return geo_dist
+    
+    logger.info(f"Building k-NN graph with k={k} for {n_samples} points")
+    
+    # Build sparse k-NN graph more efficiently
+    knn_indices = np.argsort(D, axis=1)[:, 1:k+1]  # Exclude self (index 0)
+    
+    # Create sparse adjacency matrix
+    row_indices = np.repeat(np.arange(n_samples), k)
+    col_indices = knn_indices.flatten()
+    edge_weights = D[row_indices, col_indices]
+    
+    # Create sparse matrix
+    adjacency_sparse = csr_matrix(
+        (edge_weights, (row_indices, col_indices)), 
+        shape=(n_samples, n_samples)
+    )
+    
+    # Make symmetric by taking minimum of (i,j) and (j,i)
+    adjacency_sparse = adjacency_sparse.minimum(adjacency_sparse.T)
+    
+    # Choose shortest path algorithm based on problem size and method
+    if method == 'auto':
+        # Use Dijkstra for sparse graphs, Floyd-Warshall for dense small graphs
+        if n_samples <= 200 or adjacency_sparse.nnz > n_samples * n_samples * 0.1:
+            method = 'floyd_warshall'
+        else:
+            method = 'dijkstra'
+    
+    logger.info(f"Computing shortest paths using {method} method")
+    
+    try:
+        if method == 'floyd_warshall':
+            # Convert to dense for Floyd-Warshall
+            dense_adj = adjacency_sparse.toarray()
+            dense_adj[dense_adj == 0] = np.inf
+            np.fill_diagonal(dense_adj, 0)
+            geo_dist = floyd_warshall(dense_adj)
+        else:
+            # Use scipy's optimized shortest path algorithms
+            geo_dist = shortest_path(
+                adjacency_sparse, 
+                method=method, 
+                directed=False, 
+                return_predecessors=False
+            )
+        
+        # Check for disconnected components
+        infinite_mask = np.isinf(geo_dist)
+        if np.any(infinite_mask):
+            n_infinite = np.sum(infinite_mask)
+            logger.warning(f"Graph has {n_infinite} infinite distances (disconnected components)")
+            
+            # For disconnected components, use Euclidean distance as fallback
+            geo_dist[infinite_mask] = D[infinite_mask]
+            
+        return geo_dist
+        
+    except Exception as e:
+        logger.error(f"Geodesic distance computation failed: {e}")
+        logger.info("Falling back to Euclidean distance")
+        return D
 
 
 def distance_matrix(

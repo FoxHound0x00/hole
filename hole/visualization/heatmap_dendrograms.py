@@ -503,7 +503,7 @@ def analyze_activation_persistence(
         return
 
     # Import MST processor for distance calculations
-    from mst_proc import MSTProcessor
+    from ..core.mst_processor import MSTProcessor
 
     from ..core.distance_metrics import distance_matrix
 

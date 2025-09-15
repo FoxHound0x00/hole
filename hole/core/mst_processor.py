@@ -9,6 +9,7 @@ from typing import Tuple
 
 import networkx as nx
 import numpy as np
+from loguru import logger
 from scipy.sparse.csgraph import connected_components, minimum_spanning_tree
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
@@ -37,24 +38,44 @@ class MSTProcessor:
         np.random.seed(42)  # For reproducibility
         self.threshold = threshold
 
-    def create_mst(self, X: np.ndarray, distance_matrix: bool = False) -> np.ndarray:
+    def create_mst(self, X: np.ndarray, distance_matrix: bool = False, return_sparse: bool = False) -> np.ndarray:
         """
         Create minimum spanning tree from data or distance matrix.
 
         Args:
             X: Input data array or distance matrix
             distance_matrix: If True, X is treated as a distance matrix
+            return_sparse: If True, returns sparse matrix (more memory efficient)
 
         Returns:
-            Dense MST adjacency matrix
+            MST adjacency matrix (sparse or dense based on return_sparse parameter)
         """
         if distance_matrix:
             dist_matrix = X
         else:
             dist_matrix = squareform(pdist(X))
 
-        mst = minimum_spanning_tree(dist_matrix)
-        return mst.toarray()
+        mst_sparse = minimum_spanning_tree(dist_matrix)
+        
+        # Log MST properties for verification
+        n_nodes = dist_matrix.shape[0]
+        n_edges = mst_sparse.nnz // 2  # Each edge counted twice in undirected graph
+        expected_edges = n_nodes - 1
+        
+        logger.debug(f"MST created: {n_nodes} nodes, {n_edges} edges (expected: {expected_edges})")
+        
+        if n_edges != expected_edges:
+            logger.warning(f"MST has {n_edges} edges, expected {expected_edges}. Graph may be disconnected.")
+        
+        if return_sparse:
+            # Return sparse matrix for memory efficiency
+            return mst_sparse
+        else:
+            # Return dense matrix for backward compatibility
+            # Note: This can be memory intensive for large graphs
+            if n_nodes > 1000:
+                logger.warning(f"Converting sparse MST to dense matrix for {n_nodes} nodes. Consider using return_sparse=True for memory efficiency.")
+            return mst_sparse.toarray()
 
     def filter_mst(self, mst: np.ndarray, threshold: float) -> np.ndarray:
         """
@@ -101,6 +122,7 @@ class MSTProcessor:
         X_pca = pca.fit_transform(X)
         return X_pca
 
+    @staticmethod
     def filter(persistence_, dists_matrices, k_deaths):
         """
         Filter persistence components based on distance matrices.
@@ -121,7 +143,7 @@ class MSTProcessor:
         for k, v in persistence_.items():
             # Check if the key exists in dists_matrices
             if k not in dists_matrices:
-                print(f"Warning: Key '{k}' not found in dists_matrices")
+                logger.warning(f"Key '{k}' not found in dists_matrices")
                 continue
 
             persistence = v[
@@ -132,7 +154,7 @@ class MSTProcessor:
             # Get the distance matrix for this specific key
             dist_matrix = dists_matrices[k]
 
-            print(f"Processing {len(deaths)} death thresholds for {k}")
+            logger.info(f"Processing {len(deaths)} death thresholds for {k}")
 
             for i in tqdm(range(len(deaths)), desc=f"Processing {k}"):
                 death_threshold = deaths[i]
@@ -164,7 +186,7 @@ class MSTProcessor:
                     )
                     # Could store additional MST-based analysis here if needed
                 except Exception as e:
-                    print(f"MST processing failed for threshold {death_threshold}: {e}")
+                    logger.error(f"MST processing failed for threshold {death_threshold}: {e}")
 
         return components_, labels_
 

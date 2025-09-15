@@ -15,6 +15,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from loguru import logger
 from matplotlib.patches import FancyBboxPatch
 from tqdm import tqdm
 
@@ -55,7 +56,7 @@ class ClusterFlowAnalyzer:
         Returns:
             Dictionary containing components_ and labels_ in the expected format
         """
-        print("Computing persistent homology...")
+        logger.info("Computing persistent homology...")
 
         # Create Rips complex and compute persistence
         rips_complex = gd.RipsComplex(distance_matrix=self.distance_matrix)
@@ -70,21 +71,21 @@ class ClusterFlowAnalyzer:
 
         # Sort all thresholds
         all_thresholds = sorted(set(death_thresholds))
-        print(f"Found {len(all_thresholds)} total death thresholds")
+        logger.info(f"Found {len(all_thresholds)} total death thresholds")
 
         # Select 4 specific thresholds for meaningful 5-stage evolution
         selected_thresholds = self._select_meaningful_thresholds(
             all_thresholds, true_labels
         )
 
-        print(f"Selected thresholds: {[f'{t:.4f}' for t in selected_thresholds]}")
+        logger.info(f"Selected thresholds: {[f'{t:.4f}' for t in selected_thresholds]}")
 
         # Initialize components_ and labels_ dictionaries
         components_ = {"Euclidean": {}}
         labels_ = {"Euclidean": {}}
 
         for threshold in tqdm(selected_thresholds, desc="Processing thresholds"):
-            print(f"  Processing threshold: {threshold:.4f}")
+            logger.debug(f"Processing threshold: {threshold:.4f}")
 
             # Create adjacency matrix for this threshold
             adj_matrix = (self.distance_matrix <= threshold).astype(int)
@@ -122,7 +123,7 @@ class ClusterFlowAnalyzer:
         Stage 5: Final single cluster
         """
         if len(all_thresholds) < 4:
-            print("Warning: Not enough thresholds, using all available")
+            logger.warning("Not enough thresholds, using all available")
             return all_thresholds
 
         # Stage 2: Initial clusters - use smallest threshold (many small clusters)
@@ -175,14 +176,14 @@ class ClusterFlowAnalyzer:
         # Remove duplicates and sort
         selected = sorted(list(set(selected)))
 
-        print("Selected thresholds breakdown:")
-        print(f"  Initial (many clusters): {selected[0]:.4f}")
+        logger.info("Selected thresholds breakdown:")
+        logger.info(f"  Initial (many clusters): {selected[0]:.4f}")
         if len(selected) > 1:
-            print(f"  Similar to true labels: {selected[1]:.4f}")
+            logger.info(f"  Similar to true labels: {selected[1]:.4f}")
         if len(selected) > 2:
-            print(f"  Intermediate merging: {selected[2]:.4f}")
+            logger.info(f"  Intermediate merging: {selected[2]:.4f}")
         if len(selected) > 3:
-            print(f"  Final single cluster: {selected[3]:.4f}")
+            logger.info(f"  Final single cluster: {selected[3]:.4f}")
 
         return selected
 
@@ -213,7 +214,7 @@ class ClusterFlowAnalyzer:
 
             return best_threshold
 
-        print("Finding threshold where data points cluster with their true labels...")
+        logger.info("Finding threshold where data points cluster with their true labels...")
 
         best_threshold = all_thresholds[len(all_thresholds) // 3]  # Default fallback
         best_score = 0.0  # We want to maximize clustering quality
@@ -240,7 +241,7 @@ class ClusterFlowAnalyzer:
             # Homogeneity measures how well each true class is in one cluster
             combined_score = 0.7 * purity_score + 0.3 * homogeneity_score
 
-            print(
+            logger.debug(
                 f"    Threshold {threshold:.4f}: {len(components)} clusters, purity={purity_score:.3f}, homogeneity={homogeneity_score:.3f}, combined={combined_score:.3f}"
             )
 
@@ -248,7 +249,7 @@ class ClusterFlowAnalyzer:
                 best_score = combined_score
                 best_threshold = threshold
 
-        print(f"    Best threshold: {best_threshold:.4f} (score: {best_score:.3f})")
+        logger.info(f"    Best threshold: {best_threshold:.4f} (score: {best_score:.3f})")
         return best_threshold
 
     def _calculate_purity(
@@ -463,7 +464,7 @@ class ComponentEvolutionVisualizer:
 
         n_components = len(sorted_components)
 
-        print(f"Creating color mapping for {n_components} components")
+        logger.debug(f"Creating color mapping for {n_components} components")
 
         # Generate distinct colors
         distinct_colors = self._generate_distinct_colors(
@@ -566,7 +567,7 @@ class ComponentEvolutionVisualizer:
         flows = []
 
         # STAGE 1: True labels
-        print("Creating Stage 1: True labels")
+        logger.debug("Creating Stage 1: True labels")
         original_counts = Counter(original_labels)
         total_points = len(original_labels)
 
@@ -598,7 +599,7 @@ class ComponentEvolutionVisualizer:
             if threshold_str not in self.labels_[key]:
                 continue
 
-            print(f"Creating Stage {actual_stage + 1}: Threshold {threshold:.4f}")
+            logger.debug(f"Creating Stage {actual_stage + 1}: Threshold {threshold:.4f}")
 
             labels_at_threshold = self.labels_[key][threshold_str]
             component_counts = Counter(labels_at_threshold)
@@ -1079,7 +1080,7 @@ class FlowVisualizer:
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=self.dpi, bbox_inches="tight", facecolor="white")
-            print(f"Saved Sankey flow diagram: {save_path}")
+            logger.info(f"Saved Sankey flow diagram: {save_path}")
 
         return fig
 
@@ -1133,7 +1134,7 @@ class FlowVisualizer:
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=self.dpi, bbox_inches="tight", facecolor="white")
-            print(f"Saved stacked bar evolution chart: {save_path}")
+            logger.info(f"Saved stacked bar evolution chart: {save_path}")
 
         return fig
 
@@ -1164,16 +1165,16 @@ def analyze_activation_flows(
     Returns:
         Dictionary with flow analysis results
     """
-    print(f"Analyzing cluster flow evolution for {model_name} - {condition_name}")
+    logger.info(f"Analyzing cluster flow evolution for {model_name} - {condition_name}")
 
     # Load activations
     try:
         all_activations = np.load(activation_file, allow_pickle=True).item()
         if not isinstance(all_activations, dict):
-            print(f"Warning: Expected dictionary, got {type(all_activations)}")
+            logger.warning(f"Expected dictionary, got {type(all_activations)}")
             return {}
     except Exception as e:
-        print(f"Error loading {activation_file}: {e}")
+        logger.error(f"Error loading {activation_file}: {e}")
         return {}
 
     # Create output directory
@@ -1188,13 +1189,13 @@ def analyze_activation_flows(
         class_names = {i: f"Class_{i}" for i in range(10)}
 
     # Import required modules
-    from mst_proc import MSTProcessor
+    from ..core.mst_processor import MSTProcessor
 
     results = {}
 
     # Process each layer
     for layer_name, activation_data in all_activations.items():
-        print(f"  Processing layer: {layer_name}")
+        logger.info(f"Processing layer: {layer_name}")
 
         # Handle different activation shapes
         if len(activation_data.shape) == 3:
@@ -1204,7 +1205,7 @@ def analyze_activation_flows(
             # [batch_size, hidden_dim] - already flattened
             pc = activation_data
         else:
-            print(f"    Warning: Unexpected shape {activation_data.shape}, skipping...")
+            logger.warning(f"Unexpected shape {activation_data.shape}, skipping layer {layer_name}")
             continue
 
         # Subsample if too many points
@@ -1216,7 +1217,7 @@ def analyze_activation_flows(
             layer_labels = true_labels
 
         if layer_labels is None:
-            print(f"    Warning: No labels for {layer_name}, skipping...")
+            logger.warning(f"No labels for {layer_name}, skipping...")
             continue
 
         # Clean layer name for filename
@@ -1251,7 +1252,7 @@ def analyze_activation_flows(
 
             # Process each distance metric
             for dist_name, dist_matrix in distance_matrices.items():
-                print(f"    Processing {dist_name} distance metric...")
+                logger.info(f"Processing {dist_name} distance metric...")
 
                 try:
                     # Create title
@@ -1303,20 +1304,20 @@ def analyze_activation_flows(
                     }
 
                 except Exception as e:
-                    print(f"      Error processing {dist_name}: {e}")
+                    logger.error(f"Error processing {dist_name}: {e}")
                     continue
 
             results[layer_name] = layer_results
 
         except Exception as e:
-            print(f"    Error processing layer {layer_name}: {e}")
+            logger.error(f"Error processing layer {layer_name}: {e}")
             continue
 
     return results
 
 
 if __name__ == "__main__":
-    print("Flow Visualization: 5-stage component evolution through persistent homology")
-    print(
+    logger.info("Flow Visualization: 5-stage component evolution through persistent homology")
+    logger.info(
         "Stages: True Labels → Initial Clusters → Similar to True → Intermediate → Final Cluster"
     )
