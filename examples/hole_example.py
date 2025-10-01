@@ -35,7 +35,7 @@ def main():
     # Create centers that are FAR apart
     centers = np.array([[-8, -8, -8], [8, -8, 8], [-8, 8, 8], [8, 8, -8]])
     points, labels = make_blobs(
-        n_samples=120,
+        n_samples=500,
         centers=centers,
         n_features=3,
         cluster_std=0.8,
@@ -80,14 +80,18 @@ def main():
 
     print(f"   Using middle stage threshold: {middle_threshold:.3f}")
 
-    # Use the library method - much cleaner!
-    blob_viz = visualizer.get_blob_visualizer(figsize=(12, 9))
+    # Use the library method with new contour and outlier functionality!
+    blob_viz = visualizer.get_blob_visualizer(
+        figsize=(12, 9), 
+        outlier_percentage=0.10,  # Classes <10% of cluster size are outliers
+        show_contours=True        # Enable contour lines inside blobs
+    )
     fig = blob_viz.plot_pca_with_cluster_hulls(
         points,
         labels,
         middle_threshold,
         save_path=f"{output_dir}/core/blob_visualization.png",
-        title=f"Threshold: {middle_threshold:.3f}",
+        title=f"Blob Contours + Outlier Classes (Threshold: {middle_threshold:.3f})",
     )
     plt.close(fig)
 
