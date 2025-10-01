@@ -9,12 +9,20 @@ This directory contains examples demonstrating the HOLE library functionality.
 - Sankey diagrams for cluster evolution
 - Stacked bar charts for threshold analysis  
 - Heatmap dendrograms for distance matrices
-- Blob visualizations with convex hulls
+- **Blob visualizations with class-colored contours and outlier detection**
 - Persistence diagrams and barcodes
 - MDS plots for all distance metrics
 - Demonstrates what makes HOLE unique
 
-### 2. `distance_metrics.py` 
+### 2. `blob_contour_demo.py`
+**Blob contour visualization demo** - Demonstrates the new contour and outlier class features.
+- Shows how persistent homology clusters contain mixed classes
+- Demonstrates percentage-based outlier class detection
+- Class-colored contours for majority classes (≥threshold%)
+- Scatter plots for outlier classes (<threshold%)
+- Multiple threshold examples (5%, 10%, 15%)
+
+### 3. `distance_metrics.py` 
 **Advanced comprehensive analysis** - Systematic comparison across data structures and metrics.
 - ~800 lines of code
 - 5 different data structures (isotropic clusters, hypersphere, elliptical, Swiss roll, tight blobs)
@@ -29,6 +37,9 @@ cd examples/
 
 # Start with the basic example (recommended)
 python hole_example.py
+
+# Demo the new blob contour features
+python blob_contour_demo.py
 
 # For comprehensive analysis (takes much longer, generates extensive results)
 python distance_metrics.py
