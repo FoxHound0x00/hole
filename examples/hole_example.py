@@ -58,7 +58,7 @@ def main():
     heatmap_viz.compute_persistence()
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-    heatmap_viz.plot_dendrogram_with_heatmap(figsize=(16, 8), cmap="viridis")
+    heatmap_viz.plot_dendrogram_with_heatmap(figsize=(16, 8), cmap="gray")
     plt.savefig(
         f"{output_dir}/core/heatmap_dendrogram.png", dpi=300, bbox_inches="tight"
     )

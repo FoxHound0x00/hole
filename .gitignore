@@ -171,12 +171,14 @@ cython_debug/
 temp/
 tmp/
 *_outputs/
+comprehensive_analysis_results/
 
 # Generated data files
 *.pkl
 *.pickle
 *.npy
 *.npz
+*.pth
 
 # OS generated files
 .DS_Store
@@ -189,3 +191,10 @@ Thumbs.db
 
 # Model weights
 **/evals/
+
+# Training/inference datasets
+examples/modeling/data/
+examples/modeling/finetune/data/
+examples/modeling/inference/data/
+examples/modeling/multirun/
+examples/modeling/outputs/
