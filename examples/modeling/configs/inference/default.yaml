@@ -1,0 +1,51 @@
+# @package _global_
+inference:
+  # Sampling
+  samples_per_class: 50
+  
+  # Model checkpoint
+  checkpoint_dir: ./finetune
+  
+  # Output directories
+  output_base_dir: ./inference/hole_outputs
+  
+  # HOLE analysis settings
+  distance_metric: euclidean
+  max_thresholds: 4
+  
+  # Visualizations to generate
+  visualizations:
+    heatmap_dendrogram: true
+    blob_visualization: true
+    sankey_flow: true
+    stacked_bars: true
+    persistence_diagram: true
+    persistence_barcode: true
+    pca_analysis: true
+    tsne_pca: true
+    mds_plots: true
+    distance_heatmaps: true
+  
+  # Visualization settings
+  viz_settings:
+    dpi: 300
+    figsize_core: [8, 6]
+    figsize_large: [12, 9]
+    figsize_flow: [18, 10]
+    point_size: 120
+    
+  # Distance metrics to analyze
+  distance_metrics:
+    - euclidean
+    - cosine
+  
+  # t-SNE settings
+  tsne:
+    pca_components: 50
+    perplexity: 30
+    n_iter: 1000
+    random_state: 42
+
+
+
+

@@ -1,0 +1,23 @@
+defaults:
+  - model: resnet50
+  - dataset: cifar10
+  - training: default
+  - inference: default
+  - _self_
+
+# Hydra configuration
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
+# Global settings
+seed: 42
+device: cuda  # cuda or cpu
+num_workers: 4
+
+
+
+

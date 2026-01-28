@@ -1,0 +1,37 @@
+# @package _global_
+dataset:
+  name: cifar10
+  num_classes: 10
+  image_size: 224
+  data_dir: ./data
+  
+  # Data augmentation
+  train_transforms:
+    resize: 224
+    random_horizontal_flip: true
+    normalize:
+      mean: [0.4914, 0.4822, 0.4465]
+      std: [0.2023, 0.1994, 0.2010]
+  
+  test_transforms:
+    resize: 224
+    normalize:
+      mean: [0.4914, 0.4822, 0.4465]
+      std: [0.2023, 0.1994, 0.2010]
+  
+  # Class names
+  class_names:
+    - airplane
+    - automobile
+    - bird
+    - cat
+    - deer
+    - dog
+    - frog
+    - horse
+    - ship
+    - truck
+
+
+
+

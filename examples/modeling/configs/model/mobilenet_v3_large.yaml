@@ -1,0 +1,17 @@
+# @package _global_
+model:
+  name: mobilenet_v3_large
+  architecture: mobilenet_v3
+  pretrained: true
+  weights: IMAGENET1K_V1
+  hook_layer: avgpool
+  
+  training:
+    batch_size: 128
+    learning_rate: 0.001
+    gradient_accumulation_steps: 1
+
+
+
+
+
