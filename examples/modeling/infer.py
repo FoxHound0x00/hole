@@ -301,7 +301,7 @@ def infer(cfg: DictConfig):
             n_components=2, 
             perplexity=perplexity, 
             random_state=cfg.inference.tsne.random_state, 
-            n_iter=cfg.inference.tsne.n_iter
+            max_iter=cfg.inference.tsne.max_iter
         )
         tsne_results = tsne.fit_transform(activations_pca)
         
