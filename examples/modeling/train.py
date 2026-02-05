@@ -82,11 +82,26 @@ def get_transforms(cfg: DictConfig, train: bool = True):
     
     transform_list = []
     
-    if 'resize' in transform_cfg:
-        transform_list.append(transforms.Resize(transform_cfg.resize))
+    # Training transforms
+    if train:
+        if 'random_resized_crop' in transform_cfg:
+            scale = transform_cfg.get('random_resized_crop_scale', [0.8, 1.0])
+            transform_list.append(transforms.RandomResizedCrop(
+                transform_cfg.random_resized_crop, 
+                scale=scale
+            ))
+        elif 'resize' in transform_cfg:
+            transform_list.append(transforms.Resize(transform_cfg.resize))
+        
+        if transform_cfg.get('random_horizontal_flip', False):
+            transform_list.append(transforms.RandomHorizontalFlip())
     
-    if train and transform_cfg.get('random_horizontal_flip', False):
-        transform_list.append(transforms.RandomHorizontalFlip())
+    # Test transforms
+    else:
+        if 'resize' in transform_cfg:
+            transform_list.append(transforms.Resize(transform_cfg.resize))
+        if 'center_crop' in transform_cfg:
+            transform_list.append(transforms.CenterCrop(transform_cfg.center_crop))
     
     transform_list.append(transforms.ToTensor())
     
@@ -149,10 +164,28 @@ def train(cfg: DictConfig):
     
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=cfg.training.learning_rate)
+    weight_decay = cfg.training.get('weight_decay', 0.01)
+    optimizer = optim.AdamW(model.parameters(), lr=cfg.training.learning_rate, weight_decay=weight_decay)
+    
+    # Learning rate scheduler with warmup
+    warmup_epochs = cfg.training.get('warmup_epochs', 0)
+    total_steps = len(train_loader) * cfg.training.epochs // cfg.training.gradient_accumulation_steps
+    warmup_steps = len(train_loader) * warmup_epochs // cfg.training.gradient_accumulation_steps
+    
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        progress = float(current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        return max(0.0, 0.5 * (1.0 + torch.cos(torch.tensor(progress * 3.14159265359)))).item()
+    
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    
+    # Gradient clipping
+    max_grad_norm = cfg.training.get('max_grad_norm', 1.0)
     
     # Training loop
     accumulation_steps = cfg.training.gradient_accumulation_steps
+    global_step = 0
     
     for epoch in range(cfg.training.epochs):
         model.train()
@@ -170,8 +203,11 @@ def train(cfg: DictConfig):
             loss.backward()
             
             if (i + 1) % accumulation_steps == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 optimizer.step()
+                scheduler.step()
                 optimizer.zero_grad()
+                global_step += 1
             
             running_loss += loss.item() * accumulation_steps
             _, predicted = outputs.max(1)

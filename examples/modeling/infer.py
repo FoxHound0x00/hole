@@ -33,7 +33,7 @@ from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-
+from collections import defaultdict
 import hole
 from hole.core import distance_metrics
 from hole.visualization.cluster_flow import ClusterFlowAnalyzer, FlowVisualizer
@@ -96,38 +96,78 @@ def get_hook_layer(model, cfg: DictConfig):
     
     return layer
 
+def register_activation_hooks(model, activations, cfg):
+    hooks = []
 
-def extract_activations(model, loader, device, cfg: DictConfig):
-    """Extract activations from the model."""
-    activations = []
+    def hook_fn(name):
+        def fn(module, input, output):
+            if isinstance(output, torch.Tensor):
+                activations[name].append(
+                    output.detach().cpu().numpy()
+                )
+        return fn
+
+    for name, module in model.named_modules():
+        if isinstance(module, (nn.Conv2d, nn.Linear)):
+            activations[name] = []
+            hooks.append(module.register_forward_hook(hook_fn(name)))
+
+    return hooks
+
+# def extract_activations(model, loader, device, cfg: DictConfig):
+#     """Extract activations from the model."""
+#     activations = []
+#     labels_list = []
+    
+#     def hook_fn(module, input, output):
+#         # Handle different layer types
+#         if cfg.model.architecture == 'vit' or cfg.model.get('requires_timm', False):
+#             activations.append(input[0].detach().cpu().numpy())
+#         else:
+#             activations.append(output.detach().cpu().numpy())
+    
+#     # Register hook
+#     hook_layer = get_hook_layer(model, cfg)
+#     hook = hook_layer.register_forward_hook(hook_fn)
+    
+#     # Extract
+#     with torch.no_grad():
+#         for images, labels in loader:
+#             images = images.to(device)
+#             _ = model(images)
+#             labels_list.extend(labels.numpy())
+    
+#     hook.remove()
+    
+#     # Combine and flatten
+#     activations = np.concatenate(activations, axis=0)
+#     activations = activations.reshape(activations.shape[0], -1)
+#     labels_array = np.array(labels_list)
+    
+#     return activations, labels_array
+
+def extract_activations(model, loader, device, cfg):
+    activations = defaultdict(list)
     labels_list = []
-    
-    def hook_fn(module, input, output):
-        # Handle different layer types
-        if cfg.model.architecture == 'vit' or cfg.model.get('requires_timm', False):
-            activations.append(input[0].detach().cpu().numpy())
-        else:
-            activations.append(output.detach().cpu().numpy())
-    
-    # Register hook
-    hook_layer = get_hook_layer(model, cfg)
-    hook = hook_layer.register_forward_hook(hook_fn)
-    
-    # Extract
+
+    hooks = register_activation_hooks(model, activations, cfg)
+
     with torch.no_grad():
         for images, labels in loader:
             images = images.to(device)
             _ = model(images)
             labels_list.extend(labels.numpy())
-    
-    hook.remove()
-    
-    # Combine and flatten
-    activations = np.concatenate(activations, axis=0)
-    activations = activations.reshape(activations.shape[0], -1)
-    labels_array = np.array(labels_list)
-    
-    return activations, labels_array
+
+    for h in hooks:
+        h.remove()
+
+    # flatten per-layer activations
+    flattened_activations = {}
+    for layer_name, acts in activations.items():
+        acts = np.concatenate(acts, axis=0)
+        flattened_activations[layer_name] = acts.reshape(acts.shape[0], -1)
+
+    return flattened_activations, np.array(labels_list)
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
@@ -211,9 +251,9 @@ def infer(cfg: DictConfig):
         plt.savefig(output_dir / "core/heatmap_dendrogram.png", dpi=cfg.inference.viz_settings.dpi, bbox_inches="tight")
         plt.close()
     
-    # 2. BLOB VISUALIZATION
+    # 2. BLOB VISUALIZATION WITH CONTOURS
     if viz_cfg.blob_visualization:
-        print("2. Creating blob visualization...")
+        print("2. Creating blob visualization with contours...")
         analyzer = ClusterFlowAnalyzer(visualizer.distance_matrix, max_thresholds=cfg.inference.max_thresholds)
         cluster_evolution = analyzer.compute_cluster_evolution(labels_array)
         
@@ -221,13 +261,19 @@ def infer(cfg: DictConfig):
         thresholds = sorted([float(t) for t in euclidean_labels.keys()])
         middle_threshold = thresholds[min(1, len(thresholds)-1)]
         
-        blob_viz = visualizer.get_blob_visualizer(figsize=tuple(cfg.inference.viz_settings.figsize_large))
+        # Create blob visualization with contours and outlier detection (like the example)
+        blob_viz = visualizer.get_blob_visualizer(
+            figsize=tuple(cfg.inference.viz_settings.figsize_large),
+            outlier_percentage=0.10,  # Classes <10% of cluster are outliers
+            show_contours=True,       # Show contours for majority classes
+            alpha_hull=0.3            # Semi-transparent blobs
+        )
         fig = blob_viz.plot_pca_with_cluster_hulls(
             activations,
             labels_array,
             middle_threshold,
             save_path=str(output_dir / "core/blob_visualization.png"),
-            title=f"{cfg.model.name} - Threshold: {middle_threshold:.3f}",
+            title=f"{cfg.model.name} - Blob Contours (outliers <10%)",
         )
         plt.close(fig)
     

@@ -7,8 +7,8 @@ model:
   hook_layer: heads.head
   
   training:
-    batch_size: 64
-    learning_rate: 0.0001
+    batch_size: 128  # Matching standalone script
+    learning_rate: 2.0e-5  # HuggingFace standard
     gradient_accumulation_steps: 1
 
 

@@ -91,16 +91,16 @@ configs/
 
 ### Vision Transformer (ViT)
 - `vit_b_32` (Base/32), `vit_l_32` (Large/32)
-- Batch size: 64/32, LR: 0.0001
+- Batch size: 64/32, LR: 0.001
 
 ### ConvNeXt
 - `convnext_base`, `convnext_large`
-- Batch size: 16/8, LR: 0.0001
+- Batch size: 16/8, LR: 0.001
 - Uses gradient accumulation (4 steps)
 
 ### MLP-Mixer (requires timm)
 - `mixer_b16` (Base/16), `mixer_l16` (Large/16)
-- Batch size: 16/8, LR: 0.0001
+- Batch size: 16/8, LR: 0.001
 - Uses gradient accumulation (4 steps)
 
 ## Configuration Examples

@@ -966,23 +966,24 @@ class BlobVisualizer:
                     # Fallback for degenerate cases
                     pass
 
-        # Plot only outliers as scatter points colored by TRUE classes
-        outlier_points = points_2d[outlier_mask]
-        outlier_labels = true_labels[outlier_mask]
-        
-        for class_id in np.unique(outlier_labels):
-            class_mask = outlier_labels == class_id
+        # Plot ALL points as scatter, colored by TRUE classes
+        # This ensures the blobs aren't empty
+        for class_id in np.unique(true_labels):
+            class_mask = true_labels == class_id
             if np.any(class_mask):
+                # Check if this class has any outliers
+                is_outlier_class = np.any(outlier_mask & class_mask)
+                
                 ax.scatter(
-                    outlier_points[class_mask, 0],
-                    outlier_points[class_mask, 1],
+                    points_2d[class_mask, 0],
+                    points_2d[class_mask, 1],
                     c=class_colors[class_id % len(class_colors)],
-                    s=120,
-                    alpha=0.9,
+                    s=120 if is_outlier_class else 80,  # Slightly larger for outlier classes
+                    alpha=0.9 if is_outlier_class else 0.7,
                     edgecolors="black",
-                    linewidth=1.0,
+                    linewidth=1.0 if is_outlier_class else 0.5,
                     zorder=4,
-                    label=f'Class {class_id} Outliers'
+                    label=f'Class {class_id}' + (' (has outliers)' if is_outlier_class else '')
                 )
 
         # Set labels and title - BIGGER fonts for paper

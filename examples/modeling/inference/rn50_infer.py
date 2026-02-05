@@ -122,7 +122,11 @@ euclidean_labels = cluster_evolution["labels_"]["Euclidean"]
 thresholds = sorted([float(t) for t in euclidean_labels.keys()])
 middle_threshold = thresholds[min(1, len(thresholds)-1)]
 
-blob_viz = visualizer.get_blob_visualizer(figsize=(12, 9))
+blob_viz = visualizer.get_blob_visualizer(
+    figsize=(12, 9),
+    outlier_percentage=0.10,  # Classes <10% of cluster size are outliers
+    show_contours=False        # No contour lines inside blobs
+)
 fig = blob_viz.plot_pca_with_cluster_hulls(
     activations,
     labels_array,

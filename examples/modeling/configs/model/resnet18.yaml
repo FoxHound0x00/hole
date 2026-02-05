@@ -11,7 +11,7 @@ model:
   # Override training settings for this model
   training:
     batch_size: 128
-    learning_rate: 0.001
+    learning_rate: 2.0e-5  # HuggingFace standard
     gradient_accumulation_steps: 1
 
 

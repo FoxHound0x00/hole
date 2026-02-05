@@ -1,0 +1,107 @@
+model:
+  name: vit_l_32
+  architecture: vit
+  pretrained: true
+  weights: IMAGENET1K_V1
+  hook_layer: heads.head
+  training:
+    batch_size: 32
+    learning_rate: 0.001
+    gradient_accumulation_steps: 1
+dataset:
+  name: cifar10
+  num_classes: 10
+  image_size: 224
+  data_dir: ./data
+  train_transforms:
+    resize: 224
+    random_horizontal_flip: true
+    normalize:
+      mean:
+      - 0.4914
+      - 0.4822
+      - 0.4465
+      std:
+      - 0.2023
+      - 0.1994
+      - 0.201
+  test_transforms:
+    resize: 224
+    normalize:
+      mean:
+      - 0.4914
+      - 0.4822
+      - 0.4465
+      std:
+      - 0.2023
+      - 0.1994
+      - 0.201
+  class_names:
+  - airplane
+  - automobile
+  - bird
+  - cat
+  - deer
+  - dog
+  - frog
+  - horse
+  - ship
+  - truck
+training:
+  epochs: 30
+  batch_size: 128
+  learning_rate: 0.001
+  optimizer: adamw
+  criterion: cross_entropy
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  warmup_epochs: 3
+  gradient_accumulation_steps: 1
+  save_dir: ./finetune
+  save_best: true
+  save_last: true
+  log_interval: 100
+  early_stopping:
+    enabled: false
+    patience: 5
+    min_delta: 0.001
+inference:
+  samples_per_class: 50
+  checkpoint_dir: ./finetune
+  output_base_dir: ./inference/hole_outputs
+  distance_metric: euclidean
+  max_thresholds: 4
+  visualizations:
+    heatmap_dendrogram: true
+    blob_visualization: true
+    sankey_flow: true
+    stacked_bars: true
+    persistence_diagram: true
+    persistence_barcode: true
+    pca_analysis: true
+    tsne_pca: true
+    mds_plots: true
+    distance_heatmaps: true
+  viz_settings:
+    dpi: 300
+    figsize_core:
+    - 8
+    - 6
+    figsize_large:
+    - 12
+    - 9
+    figsize_flow:
+    - 18
+    - 10
+    point_size: 120
+  distance_metrics:
+  - euclidean
+  - cosine
+  tsne:
+    pca_components: 50
+    perplexity: 30
+    max_iter: 1000
+    random_state: 42
+seed: 42
+device: cuda
+num_workers: 4

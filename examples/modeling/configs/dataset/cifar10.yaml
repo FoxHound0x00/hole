@@ -5,16 +5,18 @@ dataset:
   image_size: 224
   data_dir: ./data
   
-  # Data augmentation
+  # Data augmentation (matching HuggingFace best practices)
   train_transforms:
-    resize: 224
+    random_resized_crop: 224
+    random_resized_crop_scale: [0.8, 1.0]
     random_horizontal_flip: true
     normalize:
       mean: [0.4914, 0.4822, 0.4465]
       std: [0.2023, 0.1994, 0.2010]
   
   test_transforms:
-    resize: 224
+    resize: 256
+    center_crop: 224
     normalize:
       mean: [0.4914, 0.4822, 0.4465]
       std: [0.2023, 0.1994, 0.2010]

@@ -1,10 +1,17 @@
 # @package _global_
 training:
-  epochs: 10
+  epochs: 30
   batch_size: 128
-  learning_rate: 0.001
-  optimizer: adam
+  learning_rate: 2.0e-5  # HuggingFace standard for fine-tuning
+  optimizer: adamw
   criterion: cross_entropy
+  
+  # Regularization
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  
+  # Learning rate schedule
+  warmup_epochs: 5  # Longer warmup for stability
   
   # Gradient accumulation
   gradient_accumulation_steps: 1
@@ -17,9 +24,9 @@ training:
   # Logging
   log_interval: 100  # Log every N batches
   
-  # Early stopping
+  # Early stopping (matching Transformers Trainer scripts)
   early_stopping:
-    enabled: false
+    enabled: true
     patience: 5
     min_delta: 0.001
 
