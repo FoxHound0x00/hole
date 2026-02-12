@@ -178,6 +178,14 @@ class BlobVisualizer:
 
         return colors[:n_colors]
 
+    def _get_class_color(self, class_id: int, n_classes: int):
+        """Get consistent color for a class across all visualizations."""
+        # Use tab20 as the single unified palette for all scatter points
+        cmap = plt.cm.tab20
+        if class_id == -1:
+            return (0.5, 0.5, 0.5, 1.0)  # Gray for noise
+        return cmap(class_id % cmap.N)
+
     def _compute_convex_hull(
         self, points: np.ndarray, padding_factor: float = 0.15
     ) -> Optional[np.ndarray]:
@@ -508,9 +516,6 @@ class BlobVisualizer:
 
         # Create plot
         fig, ax = plt.subplots(figsize=self.figsize)
-
-        # Detect outliers first (class-based outliers)
-        outlier_mask = self._detect_outliers(reduced_data, cluster_labels, y_true, self.outlier_percentage)
         
         # First, draw cluster boundaries and contours
         unique_clusters = np.unique(cluster_labels)
@@ -549,31 +554,19 @@ class BlobVisualizer:
                             # Get true labels for points in this cluster
                             cluster_true_labels = y_true[cluster_mask]
                             
-                            # Only create contours for non-outlier classes in this cluster
-                            cluster_outlier_mask = outlier_mask[cluster_mask]
-                            non_outlier_mask = ~cluster_outlier_mask
+                            # Create class-based contour grids
+                            class_grids = self._create_contour_grid_by_class(
+                                cluster_points, cluster_true_labels, hull_points
+                            )
                             
-                            if np.any(non_outlier_mask):
-                                non_outlier_points = cluster_points[non_outlier_mask]
-                                non_outlier_labels = cluster_true_labels[non_outlier_mask]
+                            # Plot contours for each class with class-specific colors
+                            for class_id, (X, Y, Z) in class_grids.items():
+                                # Get unified class color
+                                class_color = self._get_class_color(class_id, n_true_labels)
                                 
-                                # Create class-based contour grids for non-outlier classes only
-                                class_grids = self._create_contour_grid_by_class(
-                                    non_outlier_points, non_outlier_labels, hull_points
-                                )
-                                
-                                # Plot contours for each non-outlier class with class-specific colors
-                                for class_id, (X, Y, Z) in class_grids.items():
-                                    # Get class color
-                                    if class_id == -1:
-                                        class_color = (0.5, 0.5, 0.5)  # Gray for noise
-                                    else:
-                                        class_idx = unique_true_labels.index(class_id)
-                                        class_color = true_label_cmap(class_idx % true_label_cmap.N)
-                                    
-                                    # Plot contours for this class
-                                    contours = ax.contour(X, Y, Z, levels=4, colors=[class_color], 
-                                                        alpha=0.9, linewidths=2.0, zorder=2)
+                                # Plot contours for this class
+                                contours = ax.contour(X, Y, Z, levels=4, colors=[class_color], 
+                                                    alpha=0.9, linewidths=2.0, zorder=2)
                                 
                         except Exception as e:
                             print(f"        Warning: Could not create contours for cluster {cluster_id}: {e}")
@@ -599,46 +592,26 @@ class BlobVisualizer:
                         ),
                     )
 
-        # Then, draw only outliers as scatter points colored by true labels
-        # Use discrete colors for true labels
+        # Use unified color palette for true labels
         unique_true_labels = sorted(set(y_true))
         n_true_labels = len(unique_true_labels)
 
-        # Choose appropriate discrete colormap for true labels
-        if n_true_labels <= 10:
-            true_label_cmap = plt.cm.tab10
-        elif n_true_labels <= 20:
-            true_label_cmap = plt.cm.tab20
-        else:
-            true_label_cmap = plt.cm.tab20b
-
-        # Create color array for outliers only
-        outlier_colors = []
-        outlier_points = reduced_data[outlier_mask]
-        outlier_labels = y_true[outlier_mask]
-        
-        for label in outlier_labels:
-            if label == -1:
-                # Gray for noise points
-                outlier_colors.append((0.5, 0.5, 0.5, 1.0))
-            else:
-                label_idx = unique_true_labels.index(label)
-                outlier_colors.append(true_label_cmap(label_idx % true_label_cmap.N))
-
-        # Plot outliers as scatter points
-        scatter = None
-        if len(outlier_points) > 0:
-            scatter = ax.scatter(
-                outlier_points[:, 0],
-                outlier_points[:, 1],
-                c=outlier_colors,
-                s=80,  # Slightly larger for visibility
-                alpha=0.9,
-                edgecolors="black",
-                linewidth=1.0,
-                zorder=4,  # On top of everything
-                marker='o',
-                label='Outliers'
+        # Draw all points as scatter ONLY if contours are disabled
+        if not self.show_contours:
+            blob_colors = []
+            for label in y_true:
+                blob_colors.append(self._get_class_color(label, n_true_labels))
+            
+            ax.scatter(
+                reduced_data[:, 0],
+                reduced_data[:, 1],
+                c=blob_colors,
+                s=50,
+                alpha=0.7,
+                edgecolors="white",
+                linewidth=0.5,
+                zorder=3,
+                marker='o'
             )
 
         # Customize plot
@@ -653,16 +626,6 @@ class BlobVisualizer:
             pad=20,
         )
 
-        # Add colorbar only if we have outliers to show
-        if scatter is not None:
-            true_labels = np.unique(outlier_labels)
-            cbar = plt.colorbar(scatter, ax=ax, label="Class Outlier Labels", shrink=0.8)
-            cbar.set_ticks(true_labels)
-            cbar.set_ticklabels(
-                [self.class_names.get(i, f"Class_{i}") for i in true_labels], fontsize=10
-            )
-            cbar.set_label("Class Outlier Labels", fontsize=12)
-
         # Clean aesthetics - remove ticks and grids
         ax.set_xticks([])
         ax.set_yticks([])
@@ -672,17 +635,12 @@ class BlobVisualizer:
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-        # Add legend for cluster hulls and outliers
+        # Add legend for cluster hulls
         cluster_info = []
         for cluster_id in unique_clusters:
             if cluster_id != -1:
                 count = np.sum(cluster_labels == cluster_id)
                 cluster_info.append(f"Cluster {cluster_id}: {count} points")
-        
-        # Add outlier information
-        n_outliers = np.sum(outlier_mask)
-        if n_outliers > 0:
-            cluster_info.append(f"Outlier Classes: {n_outliers} points (<{self.outlier_percentage*100:.1f}% per cluster)")
 
         if cluster_info:
             legend_text = "\n".join(cluster_info[:10])  # Show first 10 clusters
@@ -878,17 +836,9 @@ class BlobVisualizer:
         # Create the visualization
         fig, ax = plt.subplots(1, 1, figsize=self.figsize)
 
-        # Define colors for true classes
-        class_colors = [
-            "red",
-            "blue",
-            "green",
-            "orange",
-            "purple",
-            "brown",
-            "pink",
-            "gray",
-        ]
+        # Get unique class labels for unified color palette
+        unique_class_labels = sorted(set(true_labels))
+        n_classes = len(unique_class_labels)
 
         # Define colors for cluster hulls
         hull_colors = [
@@ -952,8 +902,8 @@ class BlobVisualizer:
                                     
                                     # Plot contours for each non-outlier class with class-specific colors
                                     for class_id, (X, Y, Z) in class_grids.items():
-                                        # Get class color
-                                        class_color = class_colors[class_id % len(class_colors)]
+                                        # Get unified class color
+                                        class_color = self._get_class_color(class_id, n_classes)
                                         
                                         # Plot contours for this class
                                         contours = ax.contour(X, Y, Z, levels=4, colors=[class_color], 
@@ -966,7 +916,27 @@ class BlobVisualizer:
                     # Fallback for degenerate cases
                     pass
 
-        # Plot only outliers as scatter points colored by TRUE classes
+        # Plot non-outlier blob points as scatter ONLY if contours are disabled
+        if not self.show_contours:
+            non_outlier_mask = ~outlier_mask
+            blob_points = points_2d[non_outlier_mask]
+            blob_labels = true_labels[non_outlier_mask]
+            
+            for class_id in np.unique(blob_labels):
+                class_mask = blob_labels == class_id
+                if np.any(class_mask):
+                    ax.scatter(
+                        blob_points[class_mask, 0],
+                        blob_points[class_mask, 1],
+                        c=[self._get_class_color(class_id, n_classes)],
+                        s=80,
+                        alpha=0.7,
+                        edgecolors="white",
+                        linewidth=0.5,
+                        zorder=3
+                    )
+
+        # Plot outliers as scatter points colored by TRUE classes
         outlier_points = points_2d[outlier_mask]
         outlier_labels = true_labels[outlier_mask]
         
@@ -976,7 +946,7 @@ class BlobVisualizer:
                 ax.scatter(
                     outlier_points[class_mask, 0],
                     outlier_points[class_mask, 1],
-                    c=class_colors[class_id % len(class_colors)],
+                    c=[self._get_class_color(class_id, n_classes)],
                     s=120,
                     alpha=0.9,
                     edgecolors="black",
@@ -996,15 +966,20 @@ class BlobVisualizer:
         if title is None:
             n_outliers = np.sum(outlier_mask)
             title = f"HOLE Blob Visualization: PCA + Contours + Outliers (Threshold: {threshold:.3f})"
-        ax.set_title(title, fontsize=16, fontweight="bold")
+        ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
-        # Remove ticks but keep axes
+        # Clean aesthetics - remove ticks and grids
         ax.set_xticks([])
         ax.set_yticks([])
+        ax.grid(False)
+        ax.set_facecolor("white")
+
+        for spine in ax.spines.values():
+            spine.set_visible(False)
 
         # Add legend for outliers if any exist
         if np.sum(outlier_mask) > 0:
-            ax.legend(loc='upper right', fontsize=10, frameon=True, fancybox=True, shadow=True)
+            ax.legend(loc='upper right', fontsize=10, frameon=True, fancybox=True, shadow=False, framealpha=0.8)
 
         plt.tight_layout()
 

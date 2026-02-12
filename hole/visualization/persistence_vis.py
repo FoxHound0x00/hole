@@ -287,44 +287,16 @@ def plot_dimensionality_reduction(
         unique_labels = sorted(set(labels))
         n_colors = len(unique_labels)
 
-        # Choose appropriate discrete colormap
-        if n_colors <= 10:
-            cmap = plt.cm.tab10
-            colors = [cmap(i) for i in range(n_colors)]
-        elif n_colors <= 20:
-            cmap = plt.cm.tab20
-            colors = [cmap(i) for i in range(n_colors)]
-        else:
-            # For many labels, use multiple discrete colormaps
-            discrete_colormaps = [
-                plt.cm.tab20,
-                plt.cm.tab20b,
-                plt.cm.tab20c,
-                plt.cm.Set1,
-                plt.cm.Set2,
-                plt.cm.Set3,
-            ]
-            colors = []
-            for i in range(n_colors):
-                cmap_idx = i // 20
-                color_idx = i % 20
-                if cmap_idx < len(discrete_colormaps):
-                    cmap = discrete_colormaps[cmap_idx]
-                    colors.append(cmap(color_idx % cmap.N))
-                else:
-                    # Fallback to HSV generation
-                    hue = (i * 0.618033988749895) % 1.0
-                    import matplotlib.colors as mcolors
-
-                    colors.append(mcolors.hsv_to_rgb([hue, 0.7, 0.9]) + (1.0,))
-
+        # Use tab20 as unified palette for consistency with blob visualizations
+        cmap = plt.cm.tab20
+        
         label_to_color = {}
         for i, label in enumerate(unique_labels):
             if label == -1:
                 # Special gray color for noise
                 label_to_color[label] = (0.5, 0.5, 0.5, 1.0)
             else:
-                label_to_color[label] = colors[i]
+                label_to_color[label] = cmap(label % cmap.N)
 
         point_colors = [label_to_color[label] for label in labels]
     else:
@@ -337,7 +309,7 @@ def plot_dimensionality_reduction(
         c=point_colors,
         s=point_size,
         alpha=alpha,
-        edgecolors="black",
+        edgecolors="white",
         linewidth=0.5,
         **kwargs,
     )
@@ -353,7 +325,7 @@ def plot_dimensionality_reduction(
                     marker="o",
                     color="w",
                     markerfacecolor=label_to_color[label],
-                    markeredgecolor="black",
+                    markeredgecolor="white",
                     markersize=8,
                     label=f"Class {label}",
                 )
@@ -362,21 +334,28 @@ def plot_dimensionality_reduction(
             handles=legend_elements,
             title="Labels",
             loc="upper left",
+            frameon=True,
+            fancybox=True,
+            shadow=False,
+            framealpha=0.8,
         )
 
-    # Styling
-    ax.set_xlabel(f"{method.upper()} Component 1", fontsize=12)
-    ax.set_ylabel(f"{method.upper()} Component 2", fontsize=12)
+    # Styling - match blob visualization aesthetics
+    ax.set_xlabel(f"{method.upper()} Component 1", fontsize=14)
+    ax.set_ylabel(f"{method.upper()} Component 2", fontsize=14)
 
     if title is None:
-        title = f"{method.upper()} Visualization"
-    ax.set_title(title, fontsize=14, pad=20)
+        title = f"{method.upper()}"
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
 
-    # Remove ticks but keep axes
+    # Clean aesthetics - remove ticks and grids
     ax.set_xticks([])
     ax.set_yticks([])
+    ax.grid(False)
+    ax.set_facecolor("white")
 
-    ax.grid(True, alpha=0.3)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     plt.tight_layout()
     return ax

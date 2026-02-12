@@ -336,7 +336,12 @@ def geodesic_distances(X, k=10, method='auto'):
     Args:
         X: Input data array of shape (n_samples, n_features)
         k: Number of nearest neighbors for graph construction
-        method: Method for shortest path computation ('auto', 'floyd_warshall', 'dijkstra')
+        method: Method for shortest path computation:
+            - 'auto': Automatically choose best method (default)
+            - 'floyd_warshall': Dense Floyd-Warshall algorithm
+            - 'dijkstra': Sparse Dijkstra's algorithm
+            - 'bellman_ford': Bellman-Ford algorithm
+            - 'johnson': Johnson's algorithm
         
     Returns:
         Geodesic distance matrix
@@ -390,10 +395,18 @@ def geodesic_distances(X, k=10, method='auto'):
             np.fill_diagonal(dense_adj, 0)
             geo_dist = floyd_warshall(dense_adj)
         else:
+            # Map user-friendly method names to scipy's method codes
+            scipy_method_map = {
+                'dijkstra': 'D',
+                'bellman_ford': 'BF',
+                'johnson': 'J'
+            }
+            scipy_method = scipy_method_map.get(method, 'auto')
+            
             # Use scipy's optimized shortest path algorithms
             geo_dist = shortest_path(
                 adjacency_sparse, 
-                method=method, 
+                method=scipy_method, 
                 directed=False, 
                 return_predecessors=False
             )

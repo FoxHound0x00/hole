@@ -82,9 +82,9 @@ def main():
 
     # Use the library method with new contour and outlier functionality!
     blob_viz = visualizer.get_blob_visualizer(
-        figsize=(12, 9), 
+        figsize=(8, 6), 
         outlier_percentage=0.10,  # Classes <10% of cluster size are outliers
-        show_contours=True        # Enable contour lines inside blobs
+        show_contours=False        # Enable contour lines inside blobs
     )
     fig = blob_viz.plot_pca_with_cluster_hulls(
         points,

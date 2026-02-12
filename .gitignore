@@ -191,7 +191,7 @@ Thumbs.db
 
 # Model weights
 **/evals/
-
+**/vit_cifar10_finetuned/
 # Training/inference datasets
 examples/modeling/data/
 examples/modeling/finetune/data/

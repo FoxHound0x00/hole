@@ -44,7 +44,9 @@ class ClusterFlowAnalyzer:
         self.cluster_evolution = None
 
     def compute_cluster_evolution(
-        self, true_labels: Optional[np.ndarray] = None
+        self, true_labels: Optional[np.ndarray] = None,
+        filter_small_clusters: bool = False,
+        min_cluster_size: int = 10
     ) -> Dict:
         """
         Compute cluster evolution through different death thresholds.
@@ -52,6 +54,8 @@ class ClusterFlowAnalyzer:
 
         Args:
             true_labels: Optional true labels for comparison
+            filter_small_clusters: If True, remove datapoints from clusters with size <= min_cluster_size at middle threshold
+            min_cluster_size: Minimum cluster size threshold for filtering
 
         Returns:
             Dictionary containing components_ and labels_ in the expected format
@@ -83,7 +87,9 @@ class ClusterFlowAnalyzer:
         # Initialize components_ and labels_ dictionaries
         components_ = {"Euclidean": {}}
         labels_ = {"Euclidean": {}}
-
+        
+        # Store all cluster labels first
+        all_cluster_labels = {}
         for threshold in tqdm(selected_thresholds, desc="Processing thresholds"):
             logger.debug(f"Processing threshold: {threshold:.4f}")
 
@@ -101,14 +107,54 @@ class ClusterFlowAnalyzer:
                 for node in component:
                     cluster_labels[node] = cluster_id
 
-            # Store in the expected format
-            components_["Euclidean"][str(threshold)] = len(components)
-            labels_["Euclidean"][str(threshold)] = cluster_labels
+            all_cluster_labels[str(threshold)] = cluster_labels
+        
+        # Filter small clusters if requested
+        filter_mask = np.ones(self.n_points, dtype=bool)
+        if filter_small_clusters and len(selected_thresholds) >= 3:
+            # Use middle threshold (stage 3 - index 1 in selected_thresholds)
+            middle_threshold = str(selected_thresholds[1])
+            middle_labels = all_cluster_labels[middle_threshold]
+            
+            # Count cluster sizes at middle threshold
+            cluster_sizes = Counter(middle_labels)
+            
+            # Identify points in small clusters
+            small_clusters = {cid for cid, count in cluster_sizes.items() if count <= min_cluster_size}
+            filter_mask = np.array([label not in small_clusters for label in middle_labels])
+            
+            n_filtered = np.sum(~filter_mask)
+            logger.info(f"Filtering {n_filtered} points from {len(small_clusters)} small clusters (size <= {min_cluster_size})")
+        
+        # Apply filtering and store results
+        for threshold in selected_thresholds:
+            threshold_str = str(threshold)
+            cluster_labels = all_cluster_labels[threshold_str]
+            
+            if filter_small_clusters:
+                # Keep only filtered points
+                filtered_labels = cluster_labels[filter_mask]
+                
+                # Renumber clusters to be consecutive
+                unique_clusters = sorted(set(filtered_labels))
+                cluster_map = {old_id: new_id for new_id, old_id in enumerate(unique_clusters)}
+                filtered_labels = np.array([cluster_map[label] for label in filtered_labels])
+                
+                components_["Euclidean"][threshold_str] = len(unique_clusters)
+                labels_["Euclidean"][threshold_str] = filtered_labels
+            else:
+                components_["Euclidean"][threshold_str] = len(set(cluster_labels))
+                labels_["Euclidean"][threshold_str] = cluster_labels
+        
+        # Also filter true_labels if filtering is enabled
+        filtered_true_labels = true_labels
+        if filter_small_clusters and true_labels is not None:
+            filtered_true_labels = true_labels[filter_mask]
 
         return {
             "components_": components_,
             "labels_": labels_,
-            "true_labels": true_labels,
+            "true_labels": filtered_true_labels,
         }
 
     def _select_meaningful_thresholds(
@@ -380,16 +426,10 @@ class ComponentEvolutionVisualizer:
                 [label for label in set(original_labels) if label != -1]
             )
 
-            # Assign colors from tab10 for original labels
-            if len(unique_original) <= 10:
-                base_cmap = plt.cm.tab10
-                for i, label in enumerate(unique_original):
-                    colors.append(base_cmap(i))
-            else:
-                # Use tab20 for more labels
-                base_cmap = plt.cm.tab20
-                for i, label in enumerate(unique_original):
-                    colors.append(base_cmap(i % 20))
+            # Assign colors from tab20 for consistency across all visualizations
+            base_cmap = plt.cm.tab20
+            for i, label in enumerate(unique_original):
+                colors.append(base_cmap(label % base_cmap.N))
 
         # Fill remaining colors from discrete colormaps
         cmap_idx = 0
@@ -443,7 +483,8 @@ class ComponentEvolutionVisualizer:
         return colors[:n_colors]
 
     def _create_color_mapping(self, key, thresholds, original_labels=None):
-        """Create a consistent color mapping for all components across all thresholds."""
+        """Create a consistent color mapping for all components across all thresholds.
+        For middle threshold (stage 3), match colors to most common original label in each cluster."""
         all_component_ids = set()
 
         # Collect all component IDs from original labels
@@ -473,6 +514,23 @@ class ComponentEvolutionVisualizer:
 
         # Create mapping from component ID to unique color
         color_mapping = {}
+        
+        # For middle threshold (stage 3, index 1), match cluster colors to most common original label
+        middle_threshold_mapping = {}
+        if original_labels is not None and len(thresholds) >= 2:
+            middle_threshold_str = str(thresholds[1])  # Middle threshold (stage 3)
+            if middle_threshold_str in self.labels_[key]:
+                middle_labels = self.labels_[key][middle_threshold_str]
+                
+                # For each cluster at middle threshold, find most common original label
+                for cluster_id in set(middle_labels):
+                    if cluster_id == -1:
+                        continue
+                    mask = middle_labels == cluster_id
+                    cluster_orig_labels = original_labels[mask]
+                    most_common_label = Counter(cluster_orig_labels).most_common(1)[0][0]
+                    middle_threshold_mapping[cluster_id] = most_common_label
+        
         for i, comp_id in enumerate(sorted_components):
             if comp_id == -1:
                 # Special gray color for noise/unclustered points
@@ -485,6 +543,14 @@ class ComponentEvolutionVisualizer:
                 else:
                     # Fallback to a default color if we run out
                     color_mapping[comp_id] = (0.3, 0.3, 0.3, 1.0)
+        
+        # Override colors for middle threshold clusters based on most common original label
+        if middle_threshold_mapping and original_labels is not None:
+            base_cmap = plt.cm.tab20
+            for cluster_id, orig_label in middle_threshold_mapping.items():
+                if cluster_id in color_mapping:
+                    # Use same color as the most common original label
+                    color_mapping[cluster_id] = base_cmap(orig_label % base_cmap.N)
 
         return color_mapping
 
