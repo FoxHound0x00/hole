@@ -212,3 +212,5 @@ examples/modeling/outputs/
 *_hole_outputs/
 vit_random_hole_outputs/
 vit_balanced_hole_outputs/
+vit_noisy_hole_outputs/
+vit_quantized_hole_outputs/

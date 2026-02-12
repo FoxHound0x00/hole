@@ -32,21 +32,39 @@ This directory contains examples demonstrating the HOLE library functionality.
 
 ### 4. `vit_inference_random.py`
 **ViT model inference with HOLE** - Random subset analysis.
-- Loads trained ViT model from `vit.zip`
-- Runs inference on 500 random CIFAR-10 test images
-- Extracts embeddings from ViT pooler layer
-- Performs complete HOLE topological analysis
-- Generates PCA, blob, dendrogram, and flow visualizations
-- Output: `vit_random_hole_outputs/`
+- Loads trained ViT model from `vit_cifar10_finetuned/`
+- Runs inference on 1500 random CIFAR-10 test images
+- Extracts embeddings from all ViT encoder layers separately
+- Performs complete HOLE topological analysis per layer
+- Cluster filtering and color matching in flow diagrams
+- Output: `vit_random_hole_outputs/layer_0/` through `layer_11/`
 
 ### 5. `vit_inference_balanced.py`
 **ViT model inference with HOLE** - Balanced subset analysis.
-- Loads trained ViT model from `vit.zip`
-- Runs inference on balanced CIFAR-10 subset (15 images per class = 150 total)
-- Extracts embeddings from ViT pooler layer
-- Performs complete HOLE topological analysis
-- Generates PCA, blob, dendrogram, and flow visualizations
-- Output: `vit_balanced_hole_outputs/`
+- Loads trained ViT model from `vit_cifar10_finetuned/`
+- Runs inference on balanced CIFAR-10 subset (100 images per class = 1000 total)
+- Extracts embeddings from all ViT encoder layers separately
+- Performs complete HOLE topological analysis per layer
+- Cluster filtering and color matching in flow diagrams
+- Output: `vit_balanced_hole_outputs/layer_0/` through `layer_11/`
+
+### 6. `vit_inference_noisy.py`
+**ViT model inference with HOLE** - Noisy data robustness analysis.
+- Loads trained ViT model from `vit_cifar10_finetuned/`
+- Adds Gaussian noise (std=0.1) to input images
+- Runs inference on balanced CIFAR-10 subset (100 images per class)
+- Extracts embeddings from all ViT encoder layers
+- Analyzes how noise affects topological structure per layer
+- Output: `vit_noisy_hole_outputs/layer_0/` through `layer_11/`
+
+### 7. `vit_inference_quantized.py`
+**ViT model inference with HOLE** - INT8 quantized model analysis.
+- Loads trained ViT model from `vit_cifar10_finetuned/`
+- Applies dynamic INT8 quantization to model (4x smaller, faster inference)
+- Runs inference on balanced CIFAR-10 subset (100 images per class)
+- Extracts embeddings from all quantized encoder layers
+- Analyzes how quantization affects topological structure per layer
+- Output: `vit_quantized_hole_outputs/layer_0/` through `layer_11/`
 
 ## Running Examples
 
@@ -62,9 +80,11 @@ python blob_contour_demo.py
 # For comprehensive analysis (takes much longer, generates extensive results)
 python distance_metrics.py
 
-# ViT model inference with HOLE analysis (requires vit.zip in repo root)
-python vit_inference_random.py      # Random 500 samples
-python vit_inference_balanced.py    # Balanced 15 per class
+# ViT model inference with HOLE analysis (requires vit_cifar10_finetuned/)
+python vit_inference_random.py      # Random 1500 samples, all layers
+python vit_inference_balanced.py    # Balanced 100 per class, all layers
+python vit_inference_noisy.py       # Noisy data (Gaussian std=0.1), all layers
+python vit_inference_quantized.py   # INT8 quantized model, all layers
 ```
 
 ## Output
@@ -86,4 +106,4 @@ All examples require the HOLE library to be installed with its dependencies:
 - transformers
 - datasets
 - torchvision
-- Requires `vit.zip` in repo root directory
+- Requires `vit_cifar10_finetuned/` directory in repo root
