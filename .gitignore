@@ -192,9 +192,23 @@ Thumbs.db
 # Model weights
 **/evals/
 **/vit_cifar10_finetuned/
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+*.pb
+*.h5
+*.safetensors
+
 # Training/inference datasets
 examples/modeling/data/
 examples/modeling/finetune/data/
 examples/modeling/inference/data/
 examples/modeling/multirun/
 examples/modeling/outputs/
+
+# HOLE output directories
+*_hole_outputs/
+vit_random_hole_outputs/
+vit_balanced_hole_outputs/
