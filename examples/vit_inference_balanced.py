@@ -220,7 +220,7 @@ def main():
         cluster_evolution = analyzer.compute_cluster_evolution(
             labels,
             filter_small_clusters=True,
-            min_cluster_size=5
+            min_cluster_size=2
         )
         
         euclidean_labels = cluster_evolution["labels_"]["Euclidean"]

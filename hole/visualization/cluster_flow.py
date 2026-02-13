@@ -11,7 +11,6 @@ from collections import Counter, defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import gudhi as gd
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -397,161 +396,52 @@ class ComponentEvolutionVisualizer:
             9: "Cluster_9",
         }
 
-    def _generate_distinct_colors(self, n_colors, original_labels=None):
-        """Generate n visually distinct colors using discrete colormaps."""
-        colors = []
-
-        # Use discrete colormaps for better distinction
-        discrete_colormaps = [
-            plt.cm.tab10,  # 10 distinct colors
-            plt.cm.tab20,  # 20 distinct colors
-            plt.cm.tab20b,  # 20 more distinct colors
-            plt.cm.tab20c,  # 20 more distinct colors
-            plt.cm.Set1,  # 9 distinct colors
-            plt.cm.Set2,  # 8 distinct colors
-            plt.cm.Set3,  # 12 distinct colors
-            plt.cm.Pastel1,  # 9 pastel colors
-            plt.cm.Pastel2,  # 8 pastel colors
-            plt.cm.Dark2,  # 8 dark colors
-            plt.cm.Paired,  # 12 paired colors
-        ]
-
-        # Special handling for noise/unclustered points (-1)
-        # noise_color = (0.5, 0.5, 0.5, 1.0)  # Gray color for noise
-
-        # If we have original labels, assign colors for them first
-        if original_labels is not None:
-            # Get unique original labels (excluding noise if present)
-            unique_original = sorted(
-                [label for label in set(original_labels) if label != -1]
-            )
-
-            # Assign colors from tab20 for consistency across all visualizations
-            base_cmap = plt.cm.tab20
-            for i, label in enumerate(unique_original):
-                colors.append(base_cmap(label % base_cmap.N))
-
-        # Fill remaining colors from discrete colormaps
-        cmap_idx = 0
-
-        while len(colors) < n_colors and cmap_idx < len(discrete_colormaps):
-            cmap = discrete_colormaps[cmap_idx]
-
-            # Get the number of colors in this colormap
-            if hasattr(cmap, "N"):
-                n_cmap_colors = cmap.N
-            else:
-                n_cmap_colors = 256  # Default for continuous maps used discretely
-
-            # Sample discrete colors from the colormap
-            for i in range(min(20, n_cmap_colors)):  # Limit to 20 colors per map
-                if len(colors) >= n_colors:
-                    break
-
-                color = cmap(i / max(1, min(20, n_cmap_colors) - 1))
-
-                # Ensure color is sufficiently different from existing colors
-                is_unique = True
-                for existing_color in colors:
-                    # Calculate color distance in RGB space
-                    dist = np.sqrt(
-                        sum((color[j] - existing_color[j]) ** 2 for j in range(3))
-                    )
-                    if dist < 0.15:  # Minimum color distance threshold
-                        is_unique = False
-                        break
-
-                if is_unique:
-                    colors.append(color)
-
-            cmap_idx += 1
-
-        # If we still need more colors, use HSV generation as fallback
-        if len(colors) < n_colors:
-            golden_ratio = 0.618033988749895
-            for i in range(len(colors), n_colors):
-                # Use golden ratio for good color distribution
-                hue = (i * golden_ratio) % 1.0
-                saturation = 0.7 + (i % 3) * 0.1  # 0.7, 0.8, 0.9
-                value = 0.8 + (i % 2) * 0.1  # 0.8, 0.9
-
-                # Convert HSV to RGB
-                rgb = mcolors.hsv_to_rgb([hue, saturation, value])
-                rgba = (*rgb, 1.0)
-                colors.append(rgba)
-
-        return colors[:n_colors]
-
     def _create_color_mapping(self, key, thresholds, original_labels=None):
         """Create a consistent color mapping for all components across all thresholds.
-        For middle threshold (stage 3), match colors to most common original label in each cluster."""
-        all_component_ids = set()
 
-        # Collect all component IDs from original labels
-        if original_labels is not None:
-            all_component_ids.update(original_labels)
+        Uses composite string keys to avoid collision between true label IDs and cluster IDs.
+        True labels: 'L{id}' (e.g. 'L0', 'L1')
+        Clusters: 'T{threshold_idx}_C{cluster_id}' (e.g. 'T0_C5', 'T1_C3')
+        """
+        from .scatter_hull import get_label_color
 
-        # Collect all component IDs from all thresholds
-        for threshold in thresholds:
-            threshold_str = str(threshold)
-            if threshold_str in self.labels_[key]:
-                all_component_ids.update(self.labels_[key][threshold_str])
+        n_true_classes = len(set(original_labels) - {-1}) if original_labels is not None else 0
 
-        # Sort component IDs for consistent ordering, putting -1 (noise) first if present
-        sorted_components = sorted(all_component_ids)
-        if -1 in sorted_components:
-            sorted_components.remove(-1)
-            sorted_components = [-1] + sorted_components
-
-        n_components = len(sorted_components)
-
-        logger.debug(f"Creating color mapping for {n_components} components")
-
-        # Generate distinct colors
-        distinct_colors = self._generate_distinct_colors(
-            n_components, set(original_labels) if original_labels is not None else None
-        )
-
-        # Create mapping from component ID to unique color
+        # Build full color mapping
         color_mapping = {}
-        
-        # For middle threshold (stage 3, index 1), match cluster colors to most common original label
-        middle_threshold_mapping = {}
-        if original_labels is not None and len(thresholds) >= 2:
-            middle_threshold_str = str(thresholds[1])  # Middle threshold (stage 3)
-            if middle_threshold_str in self.labels_[key]:
-                middle_labels = self.labels_[key][middle_threshold_str]
-                
-                # For each cluster at middle threshold, find most common original label
-                for cluster_id in set(middle_labels):
-                    if cluster_id == -1:
-                        continue
-                    mask = middle_labels == cluster_id
-                    cluster_orig_labels = original_labels[mask]
-                    most_common_label = Counter(cluster_orig_labels).most_common(1)[0][0]
-                    middle_threshold_mapping[cluster_id] = most_common_label
-        
-        for i, comp_id in enumerate(sorted_components):
-            if comp_id == -1:
-                # Special gray color for noise/unclustered points
-                color_mapping[comp_id] = (0.5, 0.5, 0.5, 1.0)
-            else:
-                # Use the generated distinct colors for regular clusters
-                color_idx = i if -1 not in sorted_components else i - 1
-                if color_idx < len(distinct_colors):
-                    color_mapping[comp_id] = distinct_colors[color_idx]
-                else:
-                    # Fallback to a default color if we run out
-                    color_mapping[comp_id] = (0.3, 0.3, 0.3, 1.0)
-        
-        # Override colors for middle threshold clusters based on most common original label
-        if middle_threshold_mapping and original_labels is not None:
-            base_cmap = plt.cm.tab20
-            for cluster_id, orig_label in middle_threshold_mapping.items():
-                if cluster_id in color_mapping:
-                    # Use same color as the most common original label
-                    color_mapping[cluster_id] = base_cmap(orig_label % base_cmap.N)
 
+        # True labels always get the base shade, with 'L' prefix
+        if original_labels is not None:
+            for label in sorted(set(original_labels) - {-1}):
+                color_mapping[f'L{label}'] = get_label_color(label, n_true_classes)
+
+        # Filtration clusters: color by dominant true label, shade duplicates PER threshold
+        for threshold_idx, threshold in enumerate(thresholds):
+            threshold_str = str(threshold)
+            if threshold_str not in self.labels_[key]:
+                continue
+            cluster_labels = self.labels_[key][threshold_str]
+
+            # Group clusters by dominant label at this threshold
+            dominant_map = {}  # cluster_id -> dominant_label
+            for cluster_id in set(cluster_labels):
+                if cluster_id == -1:
+                    continue  # Noise handled separately
+                if original_labels is not None:
+                    mask = cluster_labels == cluster_id
+                    dominant_map[cluster_id] = Counter(original_labels[mask]).most_common(1)[0][0]
+
+            # Shade counter resets per threshold
+            label_counter = defaultdict(int)
+            for cluster_id in sorted(dominant_map.keys()):
+                dom_label = dominant_map[cluster_id]
+                shade = label_counter[dom_label]
+                # Use 'T{idx}_C{id}' format to avoid collision with true labels
+                color_mapping[f'T{threshold_idx}_C{cluster_id}'] = get_label_color(dom_label, n_true_classes, shade=shade)
+                label_counter[dom_label] += 1
+
+        color_mapping['noise'] = (0.5, 0.5, 0.5, 1.0)
+        logger.debug(f"Created color mapping for {len(color_mapping)} component ids")
         return color_mapping
 
     def plot_sankey(
@@ -651,7 +541,7 @@ class ComponentEvolutionVisualizer:
                 "y": current_y + height / 2,
                 "height": height,
                 "count": count,
-                "color": self.color_mapping[comp_id],
+                "color": self.color_mapping.get(f'L{comp_id}', (0.5, 0.5, 0.5, 1.0)),
                 "y_start": current_y,
                 "y_end": current_y + height,
             }
@@ -679,12 +569,13 @@ class ComponentEvolutionVisualizer:
                 height = (count / total_points) * total_height
 
                 # Use gray for second layer (first filtration stage) if requested
-                if (
-                    gray_second_layer and actual_stage == 1
-                ):  # Second layer (first threshold)
+                if (gray_second_layer and actual_stage == 1):
                     color = (0.7, 0.7, 0.7, 1.0)  # Light gray
+                elif comp_id == -1:
+                    color = (0.5, 0.5, 0.5, 1.0)  # Noise
                 else:
-                    color = self.color_mapping[comp_id]
+                    # Look up with threshold-specific key
+                    color = self.color_mapping.get(f'T{stage_idx}_C{comp_id}', (0.3, 0.3, 0.3, 1.0))
 
                 node_positions[actual_stage][comp_id] = {
                     "x": x_positions[actual_stage],
@@ -997,8 +888,11 @@ class ComponentEvolutionVisualizer:
                     gray_second_layer and stage_idx == 2
                 ):  # Second threshold layer (first filtration stage)
                     color = (0.7, 0.7, 0.7, 1.0)  # Light gray
+                elif stage_idx == 0:
+                    color = self.color_mapping.get(f'L{comp_id}', (0.5, 0.5, 0.5, 1.0))
                 else:
-                    color = self.color_mapping[comp_id]
+                    threshold_idx = stage_idx - 2
+                    color = self.color_mapping.get(f'T{threshold_idx}_C{comp_id}', (0.3, 0.3, 0.3, 1.0))
 
                 # Create bar segment
                 ax.bar(

@@ -121,7 +121,7 @@ def main():
     """Run quantized ViT inference on balanced CIFAR-10 subset with HOLE analysis."""
     
     # Configuration
-    N_PER_CLASS = 10  # 100 images per class (1000 total)
+    N_PER_CLASS = 20  # 100 images per class (1000 total)
     BATCH_SIZE = 32
     MODEL_PATH = "../vit_cifar10_finetuned"
     OUTPUT_DIR = "vit_quantized_hole_outputs"
@@ -239,7 +239,7 @@ def main():
         cluster_evolution = analyzer.compute_cluster_evolution(
             labels,
             filter_small_clusters=True,
-            min_cluster_size=10
+            min_cluster_size=3
         )
         
         euclidean_labels = cluster_evolution["labels_"]["Euclidean"]

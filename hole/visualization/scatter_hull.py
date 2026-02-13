@@ -9,7 +9,6 @@ nodes colored by true labels and convex hulls around cluster assignments.
 import os
 from typing import Dict, List, Optional, Tuple
 
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
@@ -18,72 +17,31 @@ from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 
 
-def generate_consistent_colors(n_colors: int = 20, include_noise: bool = True) -> List:
-    """
-    Generate consistent discrete colors for use across different visualizations.
+def get_label_color(label: int, n_classes: int = 10, shade: int = 0):
+    """Get a consistent color for a class label. Used across all visualizations.
+
+    Uses tab10 for ≤10 classes, tab20 for ≤20, evenly spaced on gist_ncar beyond.
+    Label -1 is always gray (noise).
 
     Args:
-        n_colors: Number of colors to generate
-        include_noise: Whether to include gray color for noise (-1)
-
-    Returns:
-        List of RGBA color tuples
+        label: Class label index.
+        n_classes: Total number of classes.
+        shade: 0 = base color, 1+ = progressively darker variants for
+               distinguishing multiple clusters with the same dominant class.
     """
-    colors = []
-
-    # Use multiple discrete colormaps for better variety
-    discrete_colormaps = [
-        plt.cm.tab10,  # 10 distinct colors
-        plt.cm.tab20,  # 20 distinct colors
-        plt.cm.tab20b,  # 20 more distinct colors
-        plt.cm.tab20c,  # 20 more distinct colors
-        plt.cm.Set1,  # 9 distinct colors
-        plt.cm.Set2,  # 8 distinct colors
-        plt.cm.Set3,  # 12 distinct colors
-        plt.cm.Paired,  # 12 paired colors
-    ]
-
-    # Add gray for noise if requested
-    if include_noise:
-        colors.append((0.5, 0.5, 0.5, 1.0))
-        n_colors -= 1
-
-    # Fill colors from discrete colormaps
-    cmap_idx = 0
-    while len(colors) < n_colors + (1 if include_noise else 0) and cmap_idx < len(
-        discrete_colormaps
-    ):
-        cmap = discrete_colormaps[cmap_idx]
-
-        # Get the number of colors in this colormap
-        if hasattr(cmap, "N"):
-            n_cmap_colors = cmap.N
-        else:
-            n_cmap_colors = 20  # Default for tab-like maps
-
-        # Sample discrete colors from the colormap
-        for i in range(
-            min(n_cmap_colors, n_colors - len(colors) + (1 if include_noise else 0))
-        ):
-            color = cmap(i / max(1, n_cmap_colors - 1))
-            colors.append(color)
-
-        cmap_idx += 1
-
-    # If we still need more colors, use HSV generation
-    if len(colors) < n_colors + (1 if include_noise else 0):
-        golden_ratio = 0.618033988749895
-        start_idx = len(colors) - (1 if include_noise else 0)
-        for i in range(start_idx, n_colors):
-            hue = (i * golden_ratio) % 1.0
-            saturation = 0.7 + (i % 3) * 0.1
-            value = 0.8 + (i % 2) * 0.1
-
-            rgb = mcolors.hsv_to_rgb([hue, saturation, value])
-            rgba = (*rgb, 1.0)
-            colors.append(rgba)
-
-    return colors[: n_colors + (1 if include_noise else 0)]
+    if label == -1:
+        return (0.5, 0.5, 0.5, 1.0)
+    if n_classes <= 10:
+        rgba = plt.cm.tab10(label % 10)
+    elif n_classes <= 20:
+        rgba = plt.cm.tab20(label % 20)
+    else:
+        rgba = plt.cm.gist_ncar(label / n_classes)
+    if shade > 0:
+        # Darken by 15% per shade level, floor at 30% brightness
+        factor = max(0.3, 1.0 - 0.15 * shade)
+        rgba = (rgba[0] * factor, rgba[1] * factor, rgba[2] * factor, rgba[3])
+    return rgba
 
 
 class BlobVisualizer:
@@ -124,67 +82,12 @@ class BlobVisualizer:
         # Class names - use provided or generic defaults
         self.class_names = class_names or {i: f"Class_{i}" for i in range(10)}
 
-        # Use shared colors if provided, otherwise generate new ones
-        if shared_cluster_colors is not None:
-            self.cluster_colors = shared_cluster_colors
-        else:
-            self.cluster_colors = self._generate_cluster_colors()
-
-    def _generate_cluster_colors(self, n_colors: int = 20) -> List:
-        """Generate distinct colors for cluster hulls using discrete colormaps."""
-        colors = []
-
-        # Use multiple discrete colormaps for better variety
-        discrete_colormaps = [
-            plt.cm.tab10,  # 10 distinct colors
-            plt.cm.tab20,  # 20 distinct colors
-            plt.cm.tab20b,  # 20 more distinct colors
-            plt.cm.tab20c,  # 20 more distinct colors
-            plt.cm.Set1,  # 9 distinct colors
-            plt.cm.Set2,  # 8 distinct colors
-            plt.cm.Set3,  # 12 distinct colors
-            plt.cm.Paired,  # 12 paired colors
-        ]
-
-        # Fill colors from discrete colormaps
-        cmap_idx = 0
-        while len(colors) < n_colors and cmap_idx < len(discrete_colormaps):
-            cmap = discrete_colormaps[cmap_idx]
-
-            # Get the number of colors in this colormap
-            if hasattr(cmap, "N"):
-                n_cmap_colors = cmap.N
-            else:
-                n_cmap_colors = 20  # Default for tab-like maps
-
-            # Sample discrete colors from the colormap
-            for i in range(min(n_cmap_colors, n_colors - len(colors))):
-                color = cmap(i / max(1, n_cmap_colors - 1))
-                colors.append(color)
-
-            cmap_idx += 1
-
-        # If we still need more colors, use HSV generation
-        if len(colors) < n_colors:
-            golden_ratio = 0.618033988749895
-            for i in range(len(colors), n_colors):
-                hue = (i * golden_ratio) % 1.0
-                saturation = 0.7 + (i % 3) * 0.1
-                value = 0.8 + (i % 2) * 0.1
-
-                rgb = mcolors.hsv_to_rgb([hue, saturation, value])
-                rgba = (*rgb, 1.0)
-                colors.append(rgba)
-
-        return colors[:n_colors]
+        # shared_cluster_colors kept for API compat but ignored
+        self.cluster_colors = shared_cluster_colors
 
     def _get_class_color(self, class_id: int, n_classes: int):
         """Get consistent color for a class across all visualizations."""
-        # Use tab20 as the single unified palette for all scatter points
-        cmap = plt.cm.tab20
-        if class_id == -1:
-            return (0.5, 0.5, 0.5, 1.0)  # Gray for noise
-        return cmap(class_id % cmap.N)
+        return get_label_color(class_id, n_classes)
 
     def _compute_convex_hull(
         self, points: np.ndarray, padding_factor: float = 0.15
@@ -518,6 +421,7 @@ class BlobVisualizer:
         fig, ax = plt.subplots(figsize=self.figsize)
         
         # First, draw cluster boundaries and contours
+        _hull_shade_counter = {}  # tracks shade per dominant label
         unique_clusters = np.unique(cluster_labels)
         for cluster_id in unique_clusters:
             if cluster_id == -1:  # Skip noise points for hull drawing
@@ -527,9 +431,13 @@ class BlobVisualizer:
             cluster_points = reduced_data[cluster_mask]
 
             if len(cluster_points) >= 3:  # Need at least 3 points for convex hull
-                # Get cluster color (discrete colormap)
-                color_idx = cluster_id % len(self.cluster_colors)
-                cluster_color = self.cluster_colors[color_idx]
+                # Color hull by dominant true label in cluster
+                cluster_true = y_true[cluster_mask]
+                dominant = np.bincount(cluster_true.astype(int)).argmax()
+                n_true_labels_local = len(set(y_true))
+                shade = _hull_shade_counter.get(dominant, 0)
+                _hull_shade_counter[dominant] = shade + 1
+                cluster_color = get_label_color(dominant, n_true_labels_local, shade=shade)
 
                 # Create smooth hull
                 hull_points = self._create_blob_boundary(
@@ -840,24 +748,14 @@ class BlobVisualizer:
         unique_class_labels = sorted(set(true_labels))
         n_classes = len(unique_class_labels)
 
-        # Define colors for cluster hulls
-        hull_colors = [
-            "lightblue",
-            "lightcoral",
-            "lightgreen",
-            "lightyellow",
-            "lightpink",
-            "lightcyan",
-            "lightgray",
-            "lightsalmon",
-            "lightsteelblue",
-            "lightgoldenrodyellow",
-        ]
+        # Hull colors derived from dominant true label in each cluster
+        # (computed per-cluster below)
 
         # Detect outliers first (class-based outliers)
         outlier_mask = self._detect_outliers(points_2d, cluster_labels, true_labels, self.outlier_percentage)
         
         # Plot convex hulls and contours for each cluster
+        _hull_shade_counter = {}  # tracks shade per dominant label
         unique_clusters = np.unique(cluster_labels)
         for cluster_id in unique_clusters:
             cluster_mask = cluster_labels == cluster_id
@@ -870,7 +768,13 @@ class BlobVisualizer:
                     
                     if hull_points is not None:
                         # Create polygon for the blob with distinct color per cluster
-                        cluster_color = hull_colors[cluster_id % len(hull_colors)]
+                        # Color hull by its dominant true label, shade duplicates
+                        cluster_true = true_labels[cluster_mask]
+                        dominant = np.bincount(cluster_true).argmax()
+                        shade = _hull_shade_counter.get(dominant, 0)
+                        _hull_shade_counter[dominant] = shade + 1
+                        base_rgba = get_label_color(dominant, n_classes, shade=shade)
+                        cluster_color = (*base_rgba[:3], self.alpha_hull)
                         polygon = Polygon(
                             hull_points,
                             alpha=self.alpha_hull,
