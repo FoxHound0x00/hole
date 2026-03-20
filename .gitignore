@@ -178,7 +178,6 @@ comprehensive_analysis_results/
 *.pickle
 *.npy
 *.npz
-*.pth
 
 # OS generated files
 .DS_Store
@@ -189,17 +188,28 @@ comprehensive_analysis_results/
 ehthumbs.db
 Thumbs.db
 
-# Model weights
+# Model weights and checkpoints
 **/evals/
 **/vit_cifar10_finetuned/
-
-# Model checkpoints
 *.pth
 *.pt
 *.ckpt
 *.pb
 *.h5
 *.safetensors
+*.bin
+
+# Training checkpoints and finetuned models (top-level)
+resnet50_cifar10/
+resnet50_cifar10_finetuned/
+vit_cifar10_finetuned/
+
+# TensorBoard logs
+logs/
+events.out.tfevents.*
+
+# Misc logs
+output.log
 
 # Training/inference datasets
 examples/modeling/data/
@@ -214,3 +224,6 @@ vit_random_hole_outputs/
 vit_balanced_hole_outputs/
 vit_noisy_hole_outputs/
 vit_quantized_hole_outputs/
+
+# HuggingFace cache
+.cache/

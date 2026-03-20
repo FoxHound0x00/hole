@@ -1,19 +1,16 @@
 """
 ViT-Large (Vision Transformer) fine-tuning on CIFAR-10
-Model: google/vit-large-patch16-224-in21k
 """
 
 from datasets import load_dataset
 from transformers import ViTImageProcessor, ViTForImageClassification
 from transformers import TrainingArguments, Trainer
-from torchvision.transforms import (
-    CenterCrop, Compose, Normalize, RandomHorizontalFlip,
-    RandomResizedCrop, Resize, ToTensor
-)
+from torchvision.transforms import (CenterCrop, Compose, Normalize, RandomHorizontalFlip,
+                                    RandomResizedCrop, Resize, ToTensor)
+from torch.utils.data import DataLoader
 import torch
-from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
-import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score
 
 
 def compute_metrics(eval_pred):
@@ -39,78 +36,76 @@ def collate_fn(examples):
 
 
 if __name__ == "__main__":
-    # Load CIFAR-10 dataset
-    train_ds, test_ds = load_dataset('cifar10', split=['train', 'test'])
-    
-    # Split training into train + validation
+    # load cifar10 (only small portion for demonstration purposes) 
+    train_ds, test_ds = load_dataset('cifar10', split=['train[:5000]', 'test[:2000]'])
+    # split up training into training + validation
     splits = train_ds.train_test_split(test_size=0.1)
     train_ds = splits['train']
     val_ds = splits['test']
 
-    print(f"Train dataset: {train_ds}")
-    print(f"Validation dataset: {val_ds}")
-    print(f"Test dataset: {test_ds}")
+    print(f"train dataset : {train_ds}")
+    print(f"train dataset features : {train_ds.features}")
 
-    # Create label mappings
-    id2label = {id: label for id, label in enumerate(train_ds.features['label'].names)}
-    label2id = {label: id for id, label in id2label.items()}
-    print(f"Labels: {list(id2label.values())}")
+    id2label = {id:label for id, label in enumerate(train_ds.features['label'].names)}
+    label2id = {label:id for id,label in id2label.items()}
+    print(id2label)
     
-    # Initialize processor
     processor = ViTImageProcessor.from_pretrained("google/vit-large-patch16-224-in21k")
     image_mean, image_std = processor.image_mean, processor.image_std
     size = processor.size["height"]
 
-    # Define transforms
     normalize = Normalize(mean=image_mean, std=image_std)
-    _train_transforms = Compose([
-        RandomResizedCrop(size),
-        RandomHorizontalFlip(),
-        ToTensor(),
-        normalize,
-    ])
+    _train_transforms = Compose(
+            [
+                RandomResizedCrop(size),
+                RandomHorizontalFlip(),
+                ToTensor(),
+                normalize,
+            ]
+        )
 
-    _val_transforms = Compose([
-        Resize(size),
-        CenterCrop(size),
-        ToTensor(),
-        normalize,
-    ])
+    _val_transforms = Compose(
+            [
+                Resize(size),
+                CenterCrop(size),
+                ToTensor(),
+                normalize,
+            ]
+        )
     
-    # Set transforms
+    # Set the transforms
     train_ds.set_transform(train_transforms)
     val_ds.set_transform(val_transforms)
     test_ds.set_transform(val_transforms)
     
-    # Load model
-    model = ViTForImageClassification.from_pretrained(
-        'google/vit-large-patch16-224-in21k',
-        id2label=id2label,
-        label2id=label2id
-    )
+    train_dataloader = DataLoader(train_ds, collate_fn=collate_fn, batch_size=4)
+        
+
+    batch = next(iter(train_dataloader))
+    for k,v in batch.items():
+        if isinstance(v, torch.Tensor):
+            print(k, v.shape)
     
-    # Training arguments
+    model = ViTForImageClassification.from_pretrained('google/vit-large-patch16-224-in21k',
+                                                  id2label=id2label,
+                                                  label2id=label2id)
+    
     metric_name = "accuracy"
     args = TrainingArguments(
-        output_dir="vit_large_cifar10",
+        f"vit_large_cifar10",
         save_strategy="epoch",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=32,
+        per_device_train_batch_size=10,
+        per_device_eval_batch_size=4,
         num_train_epochs=10,
         weight_decay=0.01,
         load_best_model_at_end=True,
         metric_for_best_model=metric_name,
         logging_dir='logs',
-        logging_steps=100,
         remove_unused_columns=False,
-        push_to_hub=False,
-        fp16=True,  # Mixed precision for memory efficiency
-        gradient_accumulation_steps=2,  # Effective batch size = 64
     )
     
-    # Initialize trainer
     trainer = Trainer(
         model,
         args,
@@ -121,30 +116,8 @@ if __name__ == "__main__":
         tokenizer=processor,
     )
 
-    # Train
-    print("\n" + "="*50)
-    print("Starting ViT-Large training...")
-    print("="*50 + "\n")
     trainer.train()
-    
-    # Evaluate on test set
-    print("\n" + "="*50)
-    print("Evaluating on test set...")
-    print("="*50 + "\n")
     outputs = trainer.predict(test_ds)
-    print(f"Test metrics: {outputs.metrics}")
+    print(outputs.metrics)
 
-    # Confusion matrix
-    y_true = outputs.label_ids
-    y_pred = outputs.predictions.argmax(1)
-    labels = train_ds.features['label'].names
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
-    disp.plot(xticks_rotation=45)
-    plt.tight_layout()
-    plt.savefig("vit_large_confusion_matrix.png", dpi=150)
-    print("Confusion matrix saved to vit_large_confusion_matrix.png")
-    
-    # Save model
     trainer.save_model("./vit_large_cifar10_finetuned")
-    print("\nModel saved to ./vit_large_cifar10_finetuned")

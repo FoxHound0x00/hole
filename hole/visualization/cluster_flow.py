@@ -45,7 +45,8 @@ class ClusterFlowAnalyzer:
     def compute_cluster_evolution(
         self, true_labels: Optional[np.ndarray] = None,
         filter_small_clusters: bool = False,
-        min_cluster_size: int = 10
+        min_cluster_size: int = 10,
+        metric_name: str = "Euclidean",
     ) -> Dict:
         """
         Compute cluster evolution through different death thresholds.
@@ -55,6 +56,7 @@ class ClusterFlowAnalyzer:
             true_labels: Optional true labels for comparison
             filter_small_clusters: If True, remove datapoints from clusters with size <= min_cluster_size at middle threshold
             min_cluster_size: Minimum cluster size threshold for filtering
+            metric_name: Name of the distance metric (used as dictionary key)
 
         Returns:
             Dictionary containing components_ and labels_ in the expected format
@@ -84,8 +86,8 @@ class ClusterFlowAnalyzer:
         logger.info(f"Selected thresholds: {[f'{t:.4f}' for t in selected_thresholds]}")
 
         # Initialize components_ and labels_ dictionaries
-        components_ = {"Euclidean": {}}
-        labels_ = {"Euclidean": {}}
+        components_ = {metric_name: {}}
+        labels_ = {metric_name: {}}
         
         # Store all cluster labels first
         all_cluster_labels = {}
@@ -139,11 +141,11 @@ class ClusterFlowAnalyzer:
                 cluster_map = {old_id: new_id for new_id, old_id in enumerate(unique_clusters)}
                 filtered_labels = np.array([cluster_map[label] for label in filtered_labels])
                 
-                components_["Euclidean"][threshold_str] = len(unique_clusters)
-                labels_["Euclidean"][threshold_str] = filtered_labels
+                components_[metric_name][threshold_str] = len(unique_clusters)
+                labels_[metric_name][threshold_str] = filtered_labels
             else:
-                components_["Euclidean"][threshold_str] = len(set(cluster_labels))
-                labels_["Euclidean"][threshold_str] = cluster_labels
+                components_[metric_name][threshold_str] = len(set(cluster_labels))
+                labels_[metric_name][threshold_str] = cluster_labels
         
         # Also filter true_labels if filtering is enabled
         filtered_true_labels = true_labels
@@ -1108,6 +1110,7 @@ def analyze_activation_flows(
     max_points: int = 100,
     max_thresholds: int = 6,
     class_names: Optional[Dict[int, str]] = None,
+    distance_metrics: Optional[List[str]] = None,
 ) -> Dict:
     """
     Analyze cluster flow evolution for activations using 5-stage ComponentEvolutionVisualizer..
@@ -1121,6 +1124,7 @@ def analyze_activation_flows(
         max_points: Maximum points to use for analysis
         max_thresholds: Maximum number of thresholds to plot
         class_names: Optional dictionary mapping class indices to names
+        distance_metrics: List of distance metrics to compute. If None, computes all 5.
 
     Returns:
         Dictionary with flow analysis results
@@ -1190,23 +1194,29 @@ def analyze_activation_flows(
             # Compute distance matrices
             X_pca = mst_obj.pca_utils(pc)
 
-            distance_matrices = {
-                "Euclidean": distance_matrix(pc),
-                "Mahalanobis": mst_obj.fast_maha(X_pca),
-                "Cosine": mst_obj.cosine_gen(pc),
-            }
+            distance_matrices = {}
+            if distance_metrics is None or "Euclidean" in distance_metrics:
+                distance_matrices["Euclidean"] = distance_matrix(pc)
+            if distance_metrics is None or "Mahalanobis" in distance_metrics:
+                distance_matrices["Mahalanobis"] = mst_obj.fast_maha(X_pca)
+            if distance_metrics is None or "Cosine" in distance_metrics:
+                distance_matrices["Cosine"] = mst_obj.cosine_gen(pc)
 
             # Add density normalized versions
-            distance_matrices[
-                "Density_Normalized_Euclidean"
-            ] = mst_obj.density_normalizer(
-                X=X_pca, dists=distance_matrices["Euclidean"], k=5
-            )
-            distance_matrices[
-                "Density_Normalized_Mahalanobis"
-            ] = mst_obj.density_normalizer(
-                X=X_pca, dists=distance_matrices["Mahalanobis"], k=5
-            )
+            if distance_metrics is None or "Density_Normalized_Euclidean" in distance_metrics:
+                base_euclid = distance_matrices.get("Euclidean", distance_matrix(pc))
+                distance_matrices[
+                    "Density_Normalized_Euclidean"
+                ] = mst_obj.density_normalizer(
+                    X=X_pca, dists=base_euclid, k=5
+                )
+            if distance_metrics is None or "Density_Normalized_Mahalanobis" in distance_metrics:
+                base_maha = distance_matrices.get("Mahalanobis", mst_obj.fast_maha(X_pca))
+                distance_matrices[
+                    "Density_Normalized_Mahalanobis"
+                ] = mst_obj.density_normalizer(
+                    X=X_pca, dists=base_maha, k=5
+                )
 
             layer_results = {}
 
@@ -1231,7 +1241,9 @@ def analyze_activation_flows(
                     analyzer = ClusterFlowAnalyzer(
                         dist_matrix, max_thresholds=max_thresholds
                     )
-                    cluster_evolution = analyzer.compute_cluster_evolution(layer_labels)
+                    cluster_evolution = analyzer.compute_cluster_evolution(
+                        layer_labels, metric_name=dist_name
+                    )
 
                     # Save Sankey diagram
                     sankey_path = os.path.join(

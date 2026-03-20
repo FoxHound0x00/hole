@@ -712,6 +712,7 @@ class BlobVisualizer:
         threshold: float,
         save_path: Optional[str] = None,
         title: Optional[str] = None,
+        metric: str = "euclidean",
     ) -> plt.Figure:
         """
         Create PCA plot with points colored by true labels and convex hulls for clusters at threshold.
@@ -722,6 +723,7 @@ class BlobVisualizer:
             threshold: Distance threshold for clustering
             save_path: Optional path to save the plot
             title: Optional title for the plot
+            metric: Distance metric for clustering ('euclidean', 'cosine', etc.)
 
         Returns:
             matplotlib Figure object
@@ -736,10 +738,24 @@ class BlobVisualizer:
         points_2d = pca.fit_transform(points)
 
         # Get cluster assignments at threshold
-        clustering = AgglomerativeClustering(
-            n_clusters=None, distance_threshold=threshold, linkage="single"
-        )
-        cluster_labels = clustering.fit_predict(points)
+        if metric == "mahalanobis":
+            # Mahalanobis requires a precomputed distance matrix for
+            # AgglomerativeClustering because sklearn's linkage tree
+            # cannot accept metric_params.
+            from sklearn.metrics import pairwise_distances
+            VI = np.linalg.pinv(np.cov(points, rowvar=False))
+            dist_mat = pairwise_distances(points, metric="mahalanobis", VI=VI)
+            clustering = AgglomerativeClustering(
+                n_clusters=None, distance_threshold=threshold,
+                linkage="single", metric="precomputed",
+            )
+            cluster_labels = clustering.fit_predict(dist_mat)
+        else:
+            clustering = AgglomerativeClustering(
+                n_clusters=None, distance_threshold=threshold,
+                linkage="single", metric=metric,
+            )
+            cluster_labels = clustering.fit_predict(points)
 
         # Create the visualization
         fig, ax = plt.subplots(1, 1, figsize=self.figsize)
@@ -1001,21 +1017,23 @@ def analyze_activation_blobs(
             if "Cosine" in distance_metrics:
                 distance_matrices["Cosine"] = mst_obj.cosine_gen(pc)
             if "Density_Normalized_Euclidean" in distance_metrics:
+                base_euclid = distance_matrices.get("Euclidean", distance_matrix(pc))
                 distance_matrices[
                     "Density_Normalized_Euclidean"
                 ] = mst_obj.density_normalizer(
                     X=X_pca,
-                    dists=distance_matrices.get("Euclidean", distance_matrix(pc)),
+                    dists=base_euclid,
                     k=5,
                 )
             if "Density_Normalized_Mahalanobis" in distance_metrics:
+                base_maha = distance_matrices.get(
+                    "Mahalanobis", mst_obj.fast_maha(X_pca)
+                )
                 distance_matrices[
                     "Density_Normalized_Mahalanobis"
                 ] = mst_obj.density_normalizer(
                     X=X_pca,
-                    dists=distance_matrices.get(
-                        "Mahalanobis", mst_obj.fast_maha(X_pca)
-                    ),
+                    dists=base_maha,
                     k=5,
                 )
 
@@ -1028,7 +1046,9 @@ def analyze_activation_blobs(
                 try:
                     # Compute cluster evolution
                     analyzer = ClusterFlowAnalyzer(dist_matrix, max_thresholds=4)
-                    cluster_evolution = analyzer.compute_cluster_evolution(layer_labels)
+                    cluster_evolution = analyzer.compute_cluster_evolution(
+                        layer_labels, metric_name=dist_name
+                    )
 
                     # Analyze blob separation
                     blob_results = blob_viz.analyze_blob_separation(

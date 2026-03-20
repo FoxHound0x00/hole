@@ -35,17 +35,23 @@ class UnionFind:
 
 
 class PersistenceDendrogram:
-    def __init__(self, distance_matrix=None, points=None):
+    def __init__(self, distance_matrix=None, points=None, metric="euclidean"):
         """
         Initialize with either a distance matrix or points.
         If points are provided, we'll compute the distance matrix.
+
+        Args:
+            distance_matrix: Precomputed distance matrix
+            points: Raw data points (distance matrix will be computed)
+            metric: Distance metric to use when computing from points
+                    (e.g., 'euclidean', 'cosine', 'manhattan')
         """
         if distance_matrix is not None:
             self.distance_matrix = distance_matrix
             self.n_points = distance_matrix.shape[0]
         elif points is not None:
             self.points = points
-            self.distance_matrix = pairwise_distances(points)
+            self.distance_matrix = pairwise_distances(points, metric=metric)
             self.n_points = len(points)
         else:
             raise ValueError("Must provide either distance_matrix or points")
@@ -478,10 +484,11 @@ class PersistenceDendrogram:
 
 
 def analyze_activation_persistence(
-    activation_file, output_dir, model_name, condition_name, max_points=100
+    activation_file, output_dir, model_name, condition_name, max_points=100,
+    distance_metrics=None,
 ):
     """
-    Analyze ViT activations using persistence dendrograms for all 5 distance metrics.
+    Analyze ViT activations using persistence dendrograms.
 
     Args:
         activation_file: Path to the .npy file containing activations
@@ -489,6 +496,7 @@ def analyze_activation_persistence(
         model_name: Name of the model (e.g., 'global_pruned_30pct')
         condition_name: Name of the condition (e.g., 'gaussian', 'inference')
         max_points: Maximum number of points to use for analysis (for speed)
+        distance_metrics: List of distance metrics to analyze. If None, computes all 5.
     """
     print(f"Analyzing persistence for {model_name} - {condition_name}")
 
@@ -535,22 +543,32 @@ def analyze_activation_persistence(
         mst_obj = MSTProcessor()
 
         try:
-            # Compute all 5 distance matrices
+            # Compute requested distance matrices
             X_pca = mst_obj.pca_utils(pc)
-            euclid_dist = distance_matrix(pc)
-            maha_dist = mst_obj.fast_maha(X_pca)
-            density_maha = mst_obj.density_normalizer(X=X_pca, dists=maha_dist, k=5)
-            density_euclid = mst_obj.density_normalizer(X=X_pca, dists=euclid_dist, k=5)
-            dists_cosine = mst_obj.cosine_gen(pc)
 
-            # Store distance matrices
-            dists_matrices = {
-                "Mahalanobis": maha_dist,
-                "Euclidean": euclid_dist,
-                "Density_Normalized_Mahalanobis": density_maha,
-                "Density_Normalized_Euclidean": density_euclid,
-                "Cosine": dists_cosine,
-            }
+            _all_metrics = [
+                "Euclidean", "Mahalanobis", "Cosine",
+                "Density_Normalized_Euclidean", "Density_Normalized_Mahalanobis",
+            ]
+            requested = set(distance_metrics if distance_metrics is not None else _all_metrics)
+
+            dists_matrices = {}
+            if "Euclidean" in requested:
+                dists_matrices["Euclidean"] = distance_matrix(pc)
+            if "Mahalanobis" in requested:
+                dists_matrices["Mahalanobis"] = mst_obj.fast_maha(X_pca)
+            if "Cosine" in requested:
+                dists_matrices["Cosine"] = mst_obj.cosine_gen(pc)
+            if "Density_Normalized_Euclidean" in requested:
+                base_euclid = dists_matrices.get("Euclidean", distance_matrix(pc))
+                dists_matrices["Density_Normalized_Euclidean"] = mst_obj.density_normalizer(
+                    X=X_pca, dists=base_euclid, k=5
+                )
+            if "Density_Normalized_Mahalanobis" in requested:
+                base_maha = dists_matrices.get("Mahalanobis", mst_obj.fast_maha(X_pca))
+                dists_matrices["Density_Normalized_Mahalanobis"] = mst_obj.density_normalizer(
+                    X=X_pca, dists=base_maha, k=5
+                )
 
             # Process each distance metric
             for dist_name, dist_matrix in dists_matrices.items():

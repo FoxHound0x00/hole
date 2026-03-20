@@ -362,7 +362,8 @@ def plot_dimensionality_reduction(
 
 
 def _perform_dimensionality_reduction(
-    data: np.ndarray, method: str = "pca", n_components: int = 2, random_state: int = 42
+    data: np.ndarray, method: str = "pca", n_components: int = 2, random_state: int = 42,
+    metric: str = "euclidean",
 ) -> np.ndarray:
     """
     Perform dimensionality reduction on data.
@@ -377,6 +378,8 @@ def _perform_dimensionality_reduction(
         Number of components for output
     random_state : int
         Random state for reproducibility
+    metric : str
+        Distance metric to use for non-precomputed data ('euclidean', 'cosine', etc.)
 
     Returns
     -------
@@ -438,7 +441,7 @@ def _perform_dimensionality_reduction(
             reducer = MDS(
                 n_components=n_components,
                 random_state=random_state,
-                dissimilarity="euclidean",
+                dissimilarity=metric,
                 n_init=4,
                 max_iter=1000,
             )
