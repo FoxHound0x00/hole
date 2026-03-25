@@ -159,6 +159,9 @@ cython_debug/
 #  project, it is not recommended to check the .gitignore file into version control.
 .idea/
 
+# Dev artifacts
+.dev/
+
 # HOLE specific
 # Generated plots and visualizations
 *.png

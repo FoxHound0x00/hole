@@ -764,14 +764,25 @@ class ComponentEvolutionVisualizer:
         ax.set_xlabel("Cluster Evolution Stages", fontsize=16)  # Bigger for paper
         ax.set_ylabel("Component Size (Normalized)", fontsize=16)  # Bigger for paper
 
-        plot_title = f"Sankey Diagram - {title if title else key}"
-        ax.set_title(plot_title, fontsize=18, pad=20)  # Bigger for paper
+        if title:
+            ax.set_title(title, fontsize=18, pad=20)
 
         # Remove ticks and spines
         ax.set_xticks([])
         ax.set_yticks([])
         for spine in ax.spines.values():
             spine.set_visible(False)
+
+        # Add legend for class names
+        if self.class_names and 0 in node_positions:
+            from matplotlib.patches import Patch
+            legend_handles = []
+            for comp_id in sorted(node_positions[0].keys()):
+                name = self.class_names.get(comp_id, f"Class {comp_id}")
+                color = node_positions[0][comp_id]["color"]
+                legend_handles.append(Patch(facecolor=color, edgecolor="black", linewidth=0.5, label=name))
+            ax.legend(handles=legend_handles, loc="upper right", fontsize=10,
+                      frameon=True, fancybox=True, shadow=False, framealpha=0.8)
 
         return ax
 
@@ -964,6 +975,18 @@ class ComponentEvolutionVisualizer:
         ax.grid(False)  # Explicitly turn off grid
         for spine in ax.spines.values():
             spine.set_visible(False)
+
+        # Add legend for class names
+        if self.class_names and original_labels is not None:
+            from matplotlib.patches import Patch
+            unique_labels = sorted(set(original_labels))
+            legend_handles = []
+            for comp_id in unique_labels:
+                name = self.class_names.get(comp_id, f"Class {comp_id}")
+                color = self.color_mapping.get(f'L{comp_id}', (0.5, 0.5, 0.5, 1.0))
+                legend_handles.append(Patch(facecolor=color, edgecolor="black", linewidth=0.5, label=name))
+            ax.legend(handles=legend_handles, loc="upper right", fontsize=10,
+                      frameon=True, fancybox=True, shadow=False, framealpha=0.8)
 
         return ax
 

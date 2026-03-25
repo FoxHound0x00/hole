@@ -713,6 +713,7 @@ class BlobVisualizer:
         save_path: Optional[str] = None,
         title: Optional[str] = None,
         metric: str = "euclidean",
+        class_names: Optional[dict] = None,
     ) -> plt.Figure:
         """
         Create PCA plot with points colored by true labels and convex hulls for clusters at threshold.
@@ -845,6 +846,7 @@ class BlobVisualizer:
             for class_id in np.unique(blob_labels):
                 class_mask = blob_labels == class_id
                 if np.any(class_mask):
+                    class_label = class_names[class_id] if class_names and class_id in class_names else f'Class {class_id}'
                     ax.scatter(
                         blob_points[class_mask, 0],
                         blob_points[class_mask, 1],
@@ -853,7 +855,8 @@ class BlobVisualizer:
                         alpha=0.7,
                         edgecolors="white",
                         linewidth=0.5,
-                        zorder=3
+                        zorder=3,
+                        label=class_label,
                     )
 
         # Plot outliers as scatter points colored by TRUE classes
@@ -872,7 +875,7 @@ class BlobVisualizer:
                     edgecolors="black",
                     linewidth=1.0,
                     zorder=4,
-                    label=f'Class {class_id} Outliers'
+                    label=f'{class_names[class_id]} (outlier)' if class_names and class_id in class_names else f'Class {class_id} Outliers'
                 )
 
         # Set labels and title - BIGGER fonts for paper
@@ -897,8 +900,9 @@ class BlobVisualizer:
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-        # Add legend for outliers if any exist
-        if np.sum(outlier_mask) > 0:
+        # Add legend for class labels
+        handles, labels_list = ax.get_legend_handles_labels()
+        if handles:
             ax.legend(loc='upper right', fontsize=10, frameon=True, fancybox=True, shadow=False, framealpha=0.8)
 
         plt.tight_layout()

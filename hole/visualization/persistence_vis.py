@@ -235,6 +235,7 @@ def plot_dimensionality_reduction(
     point_size: float = 50,
     alpha: float = 0.7,
     show_legend: bool = True,
+    class_names: Optional[dict] = None,
     **kwargs,
 ) -> plt.Axes:
     """
@@ -327,7 +328,7 @@ def plot_dimensionality_reduction(
                     markerfacecolor=label_to_color[label],
                     markeredgecolor="white",
                     markersize=8,
-                    label=f"Class {label}",
+                    label=class_names[label] if class_names and label in class_names else f"Class {label}",
                 )
             )
         ax.legend(

@@ -297,6 +297,18 @@ def subsample_tokens(embeddings, labels, max_tokens=500, seed=42):
 # ── per-layer HOLE visualizations ─────────────────────────────────────────────
 
 
+def _paper_ax(ax):
+    """Post-process axes for paper-quality output."""
+    ax.set_xlabel(ax.get_xlabel(), fontsize=18)
+    ax.set_ylabel(ax.get_ylabel(), fontsize=18)
+    ax.tick_params(labelsize=14)
+    leg = ax.get_legend()
+    if leg:
+        leg.set_title(leg.get_title().get_text(), prop={"size": 14})
+        for t in leg.get_texts():
+            t.set_fontsize(14)
+
+
 def process_layer(
     layer_key: str,
     embeddings: np.ndarray,
@@ -312,8 +324,6 @@ def process_layer(
     # Sub-sample so distance matrices stay manageable
     emb, lbl = subsample_tokens(embeddings, labels, max_tokens=75)
 
-    filter_tag = "Filter" if filter_clusters else "No Filter"
-
     visualizer = hole.HOLEVisualizer(
         point_cloud=emb, distance_metric="cosine"
     )
@@ -325,10 +335,12 @@ def process_layer(
         method="pca",
         labels=lbl,
         ax=ax,
-        title=f"{layer_key} – PCA ({exp_label}, {filter_tag})",
-        point_size=50,
+        title="",
+        point_size=90,
         alpha=0.7,
+        class_names=ENTITY_TYPES,
     )
+    _paper_ax(ax)
     plt.savefig(f"{layer_dir}/pca_visualization.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -338,6 +350,8 @@ def process_layer(
     )
     hv.compute_persistence()
     hv.plot_dendrogram_with_heatmap(figsize=(16, 8), cmap="gray")
+    for a in plt.gcf().get_axes():
+        _paper_ax(a)
     plt.savefig(f"{layer_dir}/heatmap_dendrogram.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -357,60 +371,70 @@ def process_layer(
 
     # 4. Blob visualization
     bv = visualizer.get_blob_visualizer(
-        figsize=(10, 8), outlier_percentage=0.0, show_contours=False
+        figsize=(12, 9), outlier_percentage=0.0, show_contours=False
     )
     fig = bv.plot_pca_with_cluster_hulls(
         emb,
         lbl,
         mid_t,
-        save_path=f"{layer_dir}/blob_visualization.png",
-        title=f"{layer_key} – Blob ({exp_label}, {filter_tag}, t={mid_t:.3f})",
+        save_path=None,
+        title="",
         metric="cosine",
+        class_names=ENTITY_TYPES,
     )
+    for a in fig.get_axes():
+        _paper_ax(a)
+    fig.savefig(f"{layer_dir}/blob_visualization.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
     # 5. Sankey flow + stacked bar evolution
-    fv = FlowVisualizer(figsize=(18, 10), class_names=ENTITY_TYPES)
+    fv = FlowVisualizer(figsize=(20, 11), class_names=ENTITY_TYPES)
 
-    plt.close(
-        fv.plot_sankey_flow(
-            clust_evo,
-            save_path=f"{layer_dir}/sankey_flow.png",
-            title=f"{layer_key} – DN-Cosine ({exp_label}, {filter_tag})",
-            show_true_labels_text=False,
-            show_filtration_text=False,
-        )
+    fig_sankey = fv.plot_sankey_flow(
+        clust_evo,
+        save_path=None,
+        title="",
+        show_true_labels_text=False,
+        show_filtration_text=False,
     )
+    for a in fig_sankey.get_axes():
+        _paper_ax(a)
+    fig_sankey.savefig(f"{layer_dir}/sankey_flow.png", dpi=300, bbox_inches="tight")
+    plt.close(fig_sankey)
 
-    plt.close(
-        fv.plot_stacked_bar_evolution(
-            clust_evo,
-            save_path=f"{layer_dir}/stacked_bars.png",
-            title=f"{layer_key} – DN-Cosine ({exp_label}, {filter_tag})",
-            show_true_labels_text=False,
-            show_filtration_text=False,
-        )
+    fig_bars = fv.plot_stacked_bar_evolution(
+        clust_evo,
+        save_path=None,
+        title="",
+        show_true_labels_text=False,
+        show_filtration_text=False,
     )
+    for a in fig_bars.get_axes():
+        _paper_ax(a)
+    fig_bars.savefig(f"{layer_dir}/stacked_bars.png", dpi=300, bbox_inches="tight")
+    plt.close(fig_bars)
 
     # 6. Persistence diagram + barcode
-    fig1, ax1 = plt.subplots(figsize=(8, 6))
+    fig1, ax1 = plt.subplots(figsize=(10, 8))
     visualizer.plot_persistence_diagram(
         ax=ax1,
-        title=f"{layer_key} – Persistence Diagram ({exp_label})",
+        title="",
         pts=20,
     )
+    _paper_ax(ax1)
     plt.tight_layout()
     fig1.savefig(
         f"{layer_dir}/persistence_diagram.png", dpi=300, bbox_inches="tight"
     )
     plt.close(fig1)
 
-    fig2, ax2 = plt.subplots(figsize=(8, 6))
+    fig2, ax2 = plt.subplots(figsize=(10, 8))
     visualizer.plot_persistence_barcode(
         ax=ax2,
-        title=f"{layer_key} – Persistence Barcode ({exp_label})",
+        title="",
         pts=20,
     )
+    _paper_ax(ax2)
     plt.tight_layout()
     fig2.savefig(
         f"{layer_dir}/persistence_barcode.png", dpi=300, bbox_inches="tight"

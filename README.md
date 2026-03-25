@@ -64,11 +64,13 @@ viz = hole.HOLEVisualizer(distance_matrix_input=euclidean_dist)
 
 The `examples/` directory contains several examples:
 
-- **`hole_example.py`** - Basic usage showcasing core HOLE visualizations (recommended starting point)
-- **`distance_metrics.py`** - Comprehensive analysis across different distance metrics and data structures
+- **`core/hole_example.py`** - Basic usage showcasing core HOLE visualizations (recommended starting point)
+- **`core/distance_metrics.py`** - Comprehensive analysis across different distance metrics and data structures
+- **`nlp/`** - BERT sentiment and NER examples with HOLE topological analysis
+- **`modeling/`** - Vision model fine-tuning and inference scripts
 
 ```bash
-cd examples/
+cd examples/core
 python hole_example.py
 ```
 
