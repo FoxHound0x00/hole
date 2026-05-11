@@ -16,10 +16,15 @@ import networkx as nx
 import numpy as np
 from loguru import logger
 from matplotlib.patches import FancyBboxPatch
-from tqdm import tqdm
 
-# Import distance_matrix from core
-from ..core.distance_metrics import distance_matrix
+# Import distance functions and shared persistence helpers from core
+from ..core.distance_metrics import (
+    cosine_distance,
+    density_normalized_distance,
+    distance_matrix,
+    mahalanobis_distance,
+)
+from ..core.persistence import compute_cluster_evolution as _compute_cluster_evolution
 
 
 class ClusterFlowAnalyzer:
@@ -89,26 +94,13 @@ class ClusterFlowAnalyzer:
         components_ = {metric_name: {}}
         labels_ = {metric_name: {}}
         
-        # Store all cluster labels first
-        all_cluster_labels = {}
-        for threshold in tqdm(selected_thresholds, desc="Processing thresholds"):
-            logger.debug(f"Processing threshold: {threshold:.4f}")
-
-            # Create adjacency matrix for this threshold
-            adj_matrix = (self.distance_matrix <= threshold).astype(int)
-            np.fill_diagonal(adj_matrix, 0)  # Remove self-loops
-
-            # Find connected components using NetworkX
-            graph = nx.from_numpy_array(adj_matrix)
-            components = list(nx.connected_components(graph))
-
-            # Create cluster labels
-            cluster_labels = np.zeros(self.n_points, dtype=int)
-            for cluster_id, component in enumerate(components):
-                for node in component:
-                    cluster_labels[node] = cluster_id
-
-            all_cluster_labels[str(threshold)] = cluster_labels
+        # Delegate per-threshold connected-component computation to the shared
+        # helper in core.persistence so the two implementations don't drift.
+        evolution = _compute_cluster_evolution(self.distance_matrix, selected_thresholds)
+        all_cluster_labels = {
+            str(threshold): evolution[threshold]["labels"]
+            for threshold in selected_thresholds
+        }
         
         # Filter small clusters if requested
         filter_mask = np.ones(self.n_points, dtype=bool)
@@ -1221,25 +1213,21 @@ def analyze_activation_flows(
             if distance_metrics is None or "Euclidean" in distance_metrics:
                 distance_matrices["Euclidean"] = distance_matrix(pc)
             if distance_metrics is None or "Mahalanobis" in distance_metrics:
-                distance_matrices["Mahalanobis"] = mst_obj.fast_maha(X_pca)
+                distance_matrices["Mahalanobis"] = mahalanobis_distance(X_pca)
             if distance_metrics is None or "Cosine" in distance_metrics:
-                distance_matrices["Cosine"] = mst_obj.cosine_gen(pc)
+                distance_matrices["Cosine"] = cosine_distance(pc)
 
             # Add density normalized versions
             if distance_metrics is None or "Density_Normalized_Euclidean" in distance_metrics:
                 base_euclid = distance_matrices.get("Euclidean", distance_matrix(pc))
                 distance_matrices[
                     "Density_Normalized_Euclidean"
-                ] = mst_obj.density_normalizer(
-                    X=X_pca, dists=base_euclid, k=5
-                )
+                ] = density_normalized_distance(X_pca, base_euclid, k=5)
             if distance_metrics is None or "Density_Normalized_Mahalanobis" in distance_metrics:
-                base_maha = distance_matrices.get("Mahalanobis", mst_obj.fast_maha(X_pca))
+                base_maha = distance_matrices.get("Mahalanobis", mahalanobis_distance(X_pca))
                 distance_matrices[
                     "Density_Normalized_Mahalanobis"
-                ] = mst_obj.density_normalizer(
-                    X=X_pca, dists=base_maha, k=5
-                )
+                ] = density_normalized_distance(X_pca, base_maha, k=5)
 
             layer_results = {}
 

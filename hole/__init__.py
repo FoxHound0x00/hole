@@ -5,18 +5,33 @@ A library for topological analysis and
 visualization of deep learning representations.
 """
 
-from loguru import logger
+import sys
 
-# Configure loguru for the HOLE package
-logger.add(
-    sink=lambda msg: print(msg, end=""),  # Print to stdout
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",
-    colorize=True
-)
+from loguru import logger
 
 # Core functionality
 from . import core, utils, visualization
+
+
+def configure_logging(level: str = "INFO", colorize: bool = True) -> int:
+    """Add a default loguru sink for HOLE log output.
+
+    Libraries should not mutate the consumer's logging setup at import time,
+    so this is opt-in. Call from application code (e.g. example scripts).
+
+    Returns the loguru handler id (pass to `logger.remove(id)` to detach).
+    """
+    return logger.add(
+        sys.stdout,
+        format=(
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+            "<level>{message}</level>"
+        ),
+        level=level,
+        colorize=colorize,
+    )
 
 # Import commonly used functions to top level for convenience
 from .core.distance_metrics import (
@@ -29,8 +44,22 @@ from .core.distance_metrics import (
     manhattan_distance,
 )
 from .core.mst_processor import MSTProcessor
-from .visualization.cluster_flow import ClusterFlowAnalyzer
-from .visualization.heatmap_dendrograms import PersistenceDendrogram
+from .core.persistence import (
+    compute_cluster_evolution,
+    compute_persistence,
+    compute_persistence_statistics,
+    extract_death_thresholds,
+    select_meaningful_thresholds,
+    track_cluster_flows,
+)
+from .visualization.cluster_flow import (
+    ClusterFlowAnalyzer,
+    analyze_activation_flows,
+)
+from .visualization.heatmap_dendrograms import (
+    PersistenceDendrogram,
+    analyze_activation_persistence,
+)
 from .visualization.scatter_hull import BlobVisualizer
 from .visualizer import HOLEVisualizer
 
@@ -53,6 +82,18 @@ __all__ = [
     "chebyshev_distance",
     "geodesic_distances",
     "density_normalized_distance",
+    # Persistence primitives
+    "compute_persistence",
+    "extract_death_thresholds",
+    "compute_cluster_evolution",
+    "select_meaningful_thresholds",
+    "track_cluster_flows",
+    "compute_persistence_statistics",
+    # High-level analysis drivers
+    "analyze_activation_flows",
+    "analyze_activation_persistence",
+    # Logging helper
+    "configure_logging",
     # Submodules
     "core",
     "utils",

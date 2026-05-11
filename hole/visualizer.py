@@ -26,7 +26,6 @@ from .visualization import (
     BlobVisualizer,
     ComponentEvolutionVisualizer,
     PersistenceDendrogram,
-    PersVis,
 )
 
 # Import visualization functions
@@ -186,10 +185,6 @@ class HOLEVisualizer:
     def get_persistence_dendrogram_visualizer(self, **kwargs):
         """Get a PersistenceDendrogram visualizer instance."""
         return PersistenceDendrogram(**kwargs)
-
-    def get_pers_vis_visualizer(self, **kwargs):
-        """Get a PersVis visualizer instance."""
-        return PersVis(**kwargs)
 
     # Persistence visualization methods (legacy support)
     def plot_persistence_diagram(self, ax=None, title=None, pts=10, **kwargs):

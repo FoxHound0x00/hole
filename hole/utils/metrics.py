@@ -5,11 +5,11 @@ This module provides various metrics for evaluating clustering quality,
 topological features, and model performance in the context of TDA.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple, Union
 
 import gudhi as gd
 import numpy as np
+from loguru import logger
 from scipy.stats import entropy
 from sklearn.metrics import (
     adjusted_rand_score,
@@ -18,8 +18,6 @@ from sklearn.metrics import (
     normalized_mutual_info_score,
     silhouette_score,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def compute_persistence_entropy(persistence_diagram: List[Tuple]) -> float:
@@ -279,7 +277,7 @@ def compute_topological_features(
                 features[f"dim_{dim}_entropy"] = 0.0
 
     except Exception as e:
-        print(f"Error computing topological features: {e}")
+        logger.error(f"Error computing topological features: {e}")
         # Return default values
         for dim in range(max_dimension + 1):
             features[f"dim_{dim}_count"] = 0

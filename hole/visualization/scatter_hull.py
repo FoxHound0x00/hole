@@ -16,6 +16,8 @@ from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 
+from ..config import DEFAULT_RANDOM_STATE
+
 
 def get_label_color(label: int, n_classes: int = 10, shade: int = 0):
     """Get a consistent color for a class label. Used across all visualizations.
@@ -208,7 +210,7 @@ class BlobVisualizer:
             return np.array(smooth_points)
 
         except Exception as e:
-            print(f"    Warning: Could not compute smooth hull: {e}")
+            logger.warning(f"    Warning: Could not compute smooth hull: {e}")
             # Fallback to regular convex hull
             return self._compute_convex_hull(points, padding_factor)
 
@@ -403,11 +405,11 @@ class BlobVisualizer:
         Returns:
             matplotlib Figure object
         """
-        print(f"      Creating {method.upper()} plot...")
+        logger.info(f"      Creating {method.upper()} plot...")
 
         # Apply dimensionality reduction
         if method.lower() == "pca":
-            reducer = PCA(n_components=2, random_state=42)
+            reducer = PCA(n_components=2, random_state=DEFAULT_RANDOM_STATE)
             reduced_data = reducer.fit_transform(activations)
             method_name = "PCA"
             explained_var = reducer.explained_variance_ratio_
@@ -477,7 +479,7 @@ class BlobVisualizer:
                                                     alpha=0.9, linewidths=2.0, zorder=2)
                                 
                         except Exception as e:
-                            print(f"        Warning: Could not create contours for cluster {cluster_id}: {e}")
+                            logger.warning(f"        Warning: Could not create contours for cluster {cluster_id}: {e}")
 
                     # Add cluster label
                     center = np.mean(cluster_points, axis=0)
@@ -567,7 +569,7 @@ class BlobVisualizer:
         # Save plot
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=self.dpi, bbox_inches="tight", facecolor="white")
-        print(f"        Saved: {save_path}")
+        logger.info(f"        Saved: {save_path}")
 
         return fig
 
@@ -598,14 +600,14 @@ class BlobVisualizer:
         Returns:
             Dictionary with analysis results
         """
-        print(f"    Analyzing blob separation for {layer_name} - {distance_metric}")
+        logger.info(f"    Analyzing blob separation for {layer_name} - {distance_metric}")
 
         # Extract thresholds and labels from cluster evolution
         components_ = cluster_evolution["components_"]
         labels_ = cluster_evolution["labels_"]
 
         if distance_metric not in components_ or distance_metric not in labels_:
-            print(
+            logger.warning(
                 f"      Warning: {distance_metric} not found in cluster evolution data"
             )
             return {}
@@ -614,7 +616,7 @@ class BlobVisualizer:
         thresholds = sorted([float(t) for t in components_[distance_metric].keys()])
 
         if len(thresholds) < 4:
-            print(f"      Warning: Need at least 4 thresholds, got {len(thresholds)}")
+            logger.warning(f"      Warning: Need at least 4 thresholds, got {len(thresholds)}")
             return {}
 
         # Select middle (3rd) and 4th stage thresholds
@@ -623,7 +625,7 @@ class BlobVisualizer:
         middle_threshold = thresholds[1]  # 3rd stage (index 1)
         fourth_threshold = thresholds[2]  # 4th stage (index 2)
 
-        print(
+        logger.info(
             f"      Selected thresholds: Middle={middle_threshold:.4f}, Fourth={fourth_threshold:.4f}"
         )
 
@@ -653,7 +655,7 @@ class BlobVisualizer:
             ("middle", middle_threshold, middle_labels),
             ("fourth", fourth_threshold, fourth_labels),
         ]:
-            print(f"      Processing {stage_name} stage (threshold={threshold:.4f})...")
+            logger.info(f"      Processing {stage_name} stage (threshold={threshold:.4f})...")
 
             stage_results = {}
 
@@ -682,7 +684,7 @@ class BlobVisualizer:
                     plt.close(fig)  # Free memory
 
                 except Exception as e:
-                    print(f"        Error creating {method} plot: {e}")
+                    logger.error(f"        Error creating {method} plot: {e}")
                     stage_results[method] = None
 
             # Calculate cluster statistics
@@ -699,7 +701,7 @@ class BlobVisualizer:
 
             results[stage_name] = stage_results
 
-            print(
+            logger.info(
                 f"        {stage_name.title()} stage: {n_clusters} clusters, sizes: {cluster_sizes}"
             )
 
@@ -735,7 +737,7 @@ class BlobVisualizer:
         from sklearn.decomposition import PCA
 
         # Apply PCA for 2D visualization
-        pca = PCA(n_components=2, random_state=42)
+        pca = PCA(n_components=2, random_state=DEFAULT_RANDOM_STATE)
         points_2d = pca.fit_transform(points)
 
         # Get cluster assignments at threshold
@@ -831,7 +833,7 @@ class BlobVisualizer:
                                                             alpha=0.9, linewidths=2.0, zorder=2)
                                     
                             except Exception as e:
-                                print(f"        Warning: Could not create contours for cluster {cluster_id}: {e}")
+                                logger.warning(f"        Warning: Could not create contours for cluster {cluster_id}: {e}")
                         
                 except Exception:
                     # Fallback for degenerate cases
@@ -910,7 +912,7 @@ class BlobVisualizer:
         # Save if path provided
         if save_path:
             fig.savefig(save_path, dpi=self.dpi, bbox_inches="tight")
-            print(f"Saved blob visualization: {save_path}")
+            logger.info(f"Saved blob visualization: {save_path}")
 
         return fig
 
@@ -941,7 +943,7 @@ def analyze_activation_blobs(
     Returns:
         Dictionary with blob analysis results
     """
-    print(f"Analyzing blob separation for {model_name} - {condition_name}")
+    logger.info(f"Analyzing blob separation for {model_name} - {condition_name}")
 
     if distance_metrics is None:
         distance_metrics = [
@@ -956,10 +958,10 @@ def analyze_activation_blobs(
     try:
         all_activations = np.load(activation_file, allow_pickle=True).item()
         if not isinstance(all_activations, dict):
-            print(f"Warning: Expected dictionary, got {type(all_activations)}")
+            logger.warning(f"Warning: Expected dictionary, got {type(all_activations)}")
             return {}
     except Exception as e:
-        print(f"Error loading {activation_file}: {e}")
+        logger.error(f"Error loading {activation_file}: {e}")
         return {}
 
     if true_labels is None:
@@ -970,7 +972,12 @@ def analyze_activation_blobs(
     from ..core.mst_processor import MSTProcessor
     from .cluster_flow import ClusterFlowAnalyzer
 
-    from hole.core.distance_metrics import distance_matrix
+    from ..core.distance_metrics import (
+        cosine_distance,
+        density_normalized_distance,
+        distance_matrix,
+        mahalanobis_distance,
+    )
 
     # Initialize blob visualizer
     blob_viz = BlobVisualizer(
@@ -985,7 +992,7 @@ def analyze_activation_blobs(
 
     # Process each layer
     for layer_name, activation_data in all_activations.items():
-        print(f"  Processing layer: {layer_name}")
+        logger.info(f"  Processing layer: {layer_name}")
 
         # Handle activation shapes
         if len(activation_data.shape) == 3:
@@ -1017,35 +1024,27 @@ def analyze_activation_blobs(
             if "Euclidean" in distance_metrics:
                 distance_matrices["Euclidean"] = distance_matrix(pc)
             if "Mahalanobis" in distance_metrics:
-                distance_matrices["Mahalanobis"] = mst_obj.fast_maha(X_pca)
+                distance_matrices["Mahalanobis"] = mahalanobis_distance(X_pca)
             if "Cosine" in distance_metrics:
-                distance_matrices["Cosine"] = mst_obj.cosine_gen(pc)
+                distance_matrices["Cosine"] = cosine_distance(pc)
             if "Density_Normalized_Euclidean" in distance_metrics:
                 base_euclid = distance_matrices.get("Euclidean", distance_matrix(pc))
                 distance_matrices[
                     "Density_Normalized_Euclidean"
-                ] = mst_obj.density_normalizer(
-                    X=X_pca,
-                    dists=base_euclid,
-                    k=5,
-                )
+                ] = density_normalized_distance(X_pca, base_euclid, k=5)
             if "Density_Normalized_Mahalanobis" in distance_metrics:
                 base_maha = distance_matrices.get(
-                    "Mahalanobis", mst_obj.fast_maha(X_pca)
+                    "Mahalanobis", mahalanobis_distance(X_pca)
                 )
                 distance_matrices[
                     "Density_Normalized_Mahalanobis"
-                ] = mst_obj.density_normalizer(
-                    X=X_pca,
-                    dists=base_maha,
-                    k=5,
-                )
+                ] = density_normalized_distance(X_pca, base_maha, k=5)
 
             layer_results = {}
 
             # Process each distance metric
             for dist_name, dist_matrix in distance_matrices.items():
-                print(f"    Processing {dist_name} distance metric...")
+                logger.info(f"    Processing {dist_name} distance metric...")
 
                 try:
                     # Compute cluster evolution
@@ -1069,13 +1068,13 @@ def analyze_activation_blobs(
                     layer_results[dist_name] = blob_results
 
                 except Exception as e:
-                    print(f"      Error processing {dist_name}: {e}")
+                    logger.error(f"      Error processing {dist_name}: {e}")
                     continue
 
             results[layer_name] = layer_results
 
         except Exception as e:
-            print(f"    Error processing layer {layer_name}: {e}")
+            logger.error(f"    Error processing layer {layer_name}: {e}")
             continue
 
     return results
@@ -1096,7 +1095,7 @@ def run_blob_analysis_on_results(
         distance_metrics: List of distance metrics to analyze
         class_names: Optional dictionary mapping class indices to names
     """
-    print(f"Running blob analysis on {results_dir}...")
+    logger.info(f"Running blob analysis on {results_dir}...")
 
     if distance_metrics is None:
         distance_metrics = [
@@ -1128,10 +1127,10 @@ def run_blob_analysis_on_results(
 
     if labels_file and os.path.exists(labels_file):
         true_labels = np.load(labels_file)
-        print(f"Loaded true labels from {labels_file}")
+        logger.info(f"Loaded true labels from {labels_file}")
     else:
-        print("Warning: True labels not found in any expected location")
-        print(f"Searched: {[labels_file]}")
+        logger.warning("Warning: True labels not found in any expected location")
+        logger.info(f"Searched: {[labels_file]}")
         return
 
     # Process each model directory
@@ -1147,7 +1146,7 @@ def run_blob_analysis_on_results(
         ]:
             activations_dir = f"{model_path}/activations"
             if os.path.exists(activations_dir):
-                print(f"Processing {model_name}...")
+                logger.info(f"Processing {model_name}...")
 
                 # Process each activation file
                 activation_files = [

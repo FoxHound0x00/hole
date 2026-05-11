@@ -6,16 +6,18 @@ that are used throughout the library.
 """
 
 from collections import defaultdict
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import gudhi as gd
-import networkx as nx
 import numpy as np
-from sklearn.metrics import pairwise_distances
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
 
 
 def compute_persistence(
-    distance_matrix: np.ndarray, max_dimension: int = 1, max_edge_length: float = np.inf
+    distance_matrix: np.ndarray,
+    max_dimension: int = 1,
+    max_edge_length: Optional[float] = None,
 ) -> List[Tuple]:
     """
     Compute persistent homology from distance matrix using GUDHI.
@@ -23,25 +25,35 @@ def compute_persistence(
     Parameters
     ----------
     distance_matrix : np.ndarray
-        Distance matrix of shape (n_points, n_points)
+        Distance matrix of shape (n_points, n_points).
     max_dimension : int, optional
         Maximum dimension for persistence computation. Default is 1.
-    max_edge_length : float, optional
-        Maximum edge length for Rips complex. Default is np.inf.
+    max_edge_length : float or None, optional
+        Maximum edge length for the Rips complex. ``None`` (default) picks a
+        finite bound (95th percentile of off-diagonal distances) so the Rips
+        complex stays tractable for moderate-to-large point clouds. Pass
+        ``float('inf')`` to disable bounding (matches the old behaviour but
+        scales poorly).
 
     Returns
     -------
     list
-        List of persistence pairs from GUDHI
+        List of persistence pairs from GUDHI.
     """
-    # Create Rips complex
+    if max_edge_length is None:
+        # Off-diagonal upper-triangular entries — avoids the n zeros on the
+        # diagonal and the duplicate lower triangle.
+        upper = distance_matrix[np.triu_indices_from(distance_matrix, k=1)]
+        if upper.size == 0:
+            max_edge_length = np.inf
+        else:
+            max_edge_length = float(np.percentile(upper, 95))
+
     rc = gd.RipsComplex(
         distance_matrix=distance_matrix, max_edge_length=max_edge_length
     )
     st = rc.create_simplex_tree(max_dimension=max_dimension)
-    persistence = st.persistence()
-
-    return persistence
+    return st.persistence()
 
 
 def extract_death_thresholds(
@@ -90,24 +102,23 @@ def compute_cluster_evolution(
     """
     n_points = distance_matrix.shape[0]
     cluster_evolution = {}
+    no_self_loops = ~np.eye(n_points, dtype=bool)
 
     for threshold in thresholds:
-        # Create adjacency matrix for this threshold
-        adj_matrix = (distance_matrix <= threshold).astype(int)
-        np.fill_diagonal(adj_matrix, 0)
+        # Sparse adjacency keeps memory linear in the edge count instead of
+        # building an n^2 dense int matrix per threshold.
+        adj_sparse = csr_matrix((distance_matrix <= threshold) & no_self_loops)
+        n_components, cluster_labels = connected_components(
+            adj_sparse, directed=False
+        )
 
-        # Find connected components
-        graph = nx.from_numpy_array(adj_matrix)
-        components = list(nx.connected_components(graph))
-
-        # Create cluster labels
-        cluster_labels = np.zeros(n_points, dtype=int)
-        for cluster_id, component in enumerate(components):
-            for node in component:
-                cluster_labels[node] = cluster_id
+        components = [
+            set(np.where(cluster_labels == cid)[0].tolist())
+            for cid in range(n_components)
+        ]
 
         cluster_evolution[threshold] = {
-            "n_clusters": len(components),
+            "n_clusters": n_components,
             "labels": cluster_labels,
             "components": components,
         }

@@ -207,6 +207,9 @@ resnet50_cifar10/
 resnet50_cifar10_finetuned/
 vit_cifar10_finetuned/
 
+# Generic HF Trainer-style intermediate checkpoints (any model)
+**/checkpoint-*/
+
 # TensorBoard logs
 logs/
 events.out.tfevents.*

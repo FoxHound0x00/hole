@@ -6,6 +6,8 @@ Useful for getting point clouds (activations) from deep learning models.
 from functools import partial
 from typing import Any, Dict, List, Optional
 
+from loguru import logger
+
 try:
     import torch
     import torch.nn as nn
@@ -89,7 +91,7 @@ class ActivationHook:
             # Single tensor output
             self.activations[name] = output.detach().cpu()
         else:
-            print(f"Warning: Unsupported output type at layer {name}: {type(output)}")
+            logger.warning(f"Unsupported output type at layer {name}: {type(output)}")
 
     def get_activations(self) -> Dict[str, Any]:
         """

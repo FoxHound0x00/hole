@@ -7,13 +7,15 @@ and performing various distance calculations on high-dimensional data.
 
 from typing import Tuple
 
-import networkx as nx
 import numpy as np
 from loguru import logger
+from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components, minimum_spanning_tree
 from scipy.spatial.distance import pdist, squareform
 from sklearn.decomposition import PCA
 from tqdm import tqdm
+
+from ..config import DEFAULT_MST_THRESHOLD, DEFAULT_RANDOM_STATE
 
 
 class MSTProcessor:
@@ -28,14 +30,18 @@ class MSTProcessor:
     - Density normalization of distance matrices
     """
 
-    def __init__(self, threshold: float = 35):
+    def __init__(self, threshold: float = DEFAULT_MST_THRESHOLD):
         """
         Initialize the MST processor.
 
         Args:
-            threshold: Distance threshold for filtering MST edges
+            threshold: Distance threshold for filtering MST edges. Defaults to
+                ``hole.config.DEFAULT_MST_THRESHOLD``.
+
+        Note: Construction no longer mutates the global ``np.random`` seed —
+        callers needing reproducibility should set the seed themselves, or use
+        the ``random_state`` parameters on the methods that consume it.
         """
-        np.random.seed(42)  # For reproducibility
         self.threshold = threshold
 
     def create_mst(self, X: np.ndarray, distance_matrix: bool = False, return_sparse: bool = False) -> np.ndarray:
@@ -108,6 +114,10 @@ class MSTProcessor:
         """
         Apply PCA dimensionality reduction.
 
+        Uses the randomized SVD solver when projecting to far fewer
+        components than the input has features — far cheaper on 768-dim+
+        embeddings (BERT/ViT scale) than the default full SVD.
+
         Args:
             X: Input data array
             n_components: Number of principal components
@@ -115,12 +125,18 @@ class MSTProcessor:
         Returns:
             PCA-transformed data
         """
-        # Ensure n_components doesn't exceed data dimensions
         n_components = min(n_components, X.shape[0] - 1, X.shape[1])
 
-        pca = PCA(n_components=n_components)
-        X_pca = pca.fit_transform(X)
-        return X_pca
+        # Randomized SVD is cheaper when output dim is much smaller than input
+        # dim; sklearn's heuristic threshold is ~10x but we only need it for
+        # the high-dim case the library actually targets.
+        solver = "randomized" if X.shape[1] > 2 * n_components else "auto"
+        pca = PCA(
+            n_components=n_components,
+            svd_solver=solver,
+            random_state=DEFAULT_RANDOM_STATE,
+        )
+        return pca.fit_transform(X)
 
     @staticmethod
     def filter(persistence_, dists_matrices, k_deaths):
@@ -156,37 +172,22 @@ class MSTProcessor:
 
             logger.info(f"Processing {len(deaths)} death thresholds for {k}")
 
+            n_points = dist_matrix.shape[0]
+
             for i in tqdm(range(len(deaths)), desc=f"Processing {k}"):
                 death_threshold = deaths[i]
 
-                # Create adjacency matrix for this threshold
-                adj_matrix = (dist_matrix <= death_threshold).astype(int)
-                np.fill_diagonal(adj_matrix, 0)  # Remove self-loops
+                # Build sparse adjacency directly — avoids the n^2 dense int
+                # array that dominated memory at scale.
+                mask = (dist_matrix <= death_threshold) & (~np.eye(n_points, dtype=bool))
+                adj_sparse = csr_matrix(mask)
 
-                # Find connected components using NetworkX
-                G = nx.from_numpy_array(adj_matrix)
-                conn_comp = list(nx.connected_components(G))
+                n_components, cluster_labels = connected_components(
+                    adj_sparse, directed=False
+                )
 
-                # Create cluster labels
-                n_points = dist_matrix.shape[0]
-                cluster_labels = np.zeros(n_points, dtype=int)
-                for cluster_id, component in enumerate(conn_comp):
-                    for node in component:
-                        cluster_labels[node] = cluster_id
-
-                # Store results
-                components_[k][f"{death_threshold}"] = len(conn_comp)
+                components_[k][f"{death_threshold}"] = n_components
                 labels_[k][f"{death_threshold}"] = cluster_labels
-
-                # Optional: Use MST processor for additional analysis
-                try:
-                    mst_obj = MSTProcessor(threshold=death_threshold)
-                    n_components, mst_labels, filtered_mst = mst_obj(
-                        X=dist_matrix, distance_matrix=True
-                    )
-                    # Could store additional MST-based analysis here if needed
-                except Exception as e:
-                    logger.error(f"MST processing failed for threshold {death_threshold}: {e}")
 
         return components_, labels_
 

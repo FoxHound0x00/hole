@@ -4,6 +4,7 @@ import gudhi as gd
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from loguru import logger
 from scipy.cluster.hierarchy import dendrogram
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import reverse_cuthill_mckee
@@ -62,7 +63,7 @@ class PersistenceDendrogram:
 
     def compute_persistence(self, max_dimension=1):
         """Compute persistence homology using GUDHI Rips complex."""
-        print(f"Computing persistence homology for {self.n_points} points...")
+        logger.info(f"Computing persistence homology for {self.n_points} points...")
 
         # Create Rips complex
         rips_complex = gd.RipsComplex(distance_matrix=self.distance_matrix)
@@ -80,7 +81,7 @@ class PersistenceDendrogram:
 
         # Sort death thresholds
         self.death_thresholds = sorted(set(death_thresholds))
-        print(f"Found {len(self.death_thresholds)} unique death thresholds")
+        logger.info(f"Found {len(self.death_thresholds)} unique death thresholds")
 
         return self.persistence
 
@@ -126,7 +127,7 @@ class PersistenceDendrogram:
 
         except Exception as e:
             fallback_name = "dendrogram" if fallback_order is not None else "original"
-            print(f"RCM reordering failed: {e}, using {fallback_name} ordering")
+            logger.warning(f"RCM reordering failed: {e}, using {fallback_name} ordering")
             fallback = (
                 fallback_order
                 if fallback_order is not None
@@ -206,7 +207,7 @@ class PersistenceDendrogram:
         if self.persistence is None:
             self.compute_persistence()
 
-        print("Building linkage matrix from persistence...")
+        logger.info("Building linkage matrix from persistence...")
 
         # Get all edges (pairs of points) with their distances
         edges = []
@@ -272,7 +273,7 @@ class PersistenceDendrogram:
 
     def _create_simple_linkage(self):
         """Create a simple linkage matrix when other methods fail."""
-        print("Creating simple linkage matrix...")
+        logger.info("Creating simple linkage matrix...")
 
         linkage = []
         remaining_clusters = list(range(self.n_points))
@@ -445,7 +446,7 @@ class PersistenceDendrogram:
         if self.persistence is None:
             self.compute_persistence()
 
-        print("Analyzing cluster evolution...")
+        logger.info("Analyzing cluster evolution...")
 
         # Track cluster assignments at different thresholds
         cluster_evolution = {}
@@ -498,26 +499,30 @@ def analyze_activation_persistence(
         max_points: Maximum number of points to use for analysis (for speed)
         distance_metrics: List of distance metrics to analyze. If None, computes all 5.
     """
-    print(f"Analyzing persistence for {model_name} - {condition_name}")
+    logger.info(f"Analyzing persistence for {model_name} - {condition_name}")
 
     # Load activations
     try:
         all_activations = np.load(activation_file, allow_pickle=True).item()
         if not isinstance(all_activations, dict):
-            print(f"Warning: Expected dictionary, got {type(all_activations)}")
+            logger.warning(f"Warning: Expected dictionary, got {type(all_activations)}")
             return
     except Exception as e:
-        print(f"Error loading {activation_file}: {e}")
+        logger.error(f"Error loading {activation_file}: {e}")
         return
 
-    # Import MST processor for distance calculations
+    # Import MST processor (for PCA) and standalone distance functions
     from ..core.mst_processor import MSTProcessor
-
-    from ..core.distance_metrics import distance_matrix
+    from ..core.distance_metrics import (
+        cosine_distance,
+        density_normalized_distance,
+        distance_matrix,
+        mahalanobis_distance,
+    )
 
     # Process each layer
     for layer_name, activation_data in all_activations.items():
-        print(f"  Processing layer: {layer_name}")
+        logger.info(f"  Processing layer: {layer_name}")
 
         # Handle different activation shapes
         if len(activation_data.shape) == 3:
@@ -527,14 +532,14 @@ def analyze_activation_persistence(
             # [batch_size, hidden_dim] - already flattened
             pc = activation_data
         else:
-            print(f"    Warning: Unexpected shape {activation_data.shape}, skipping...")
+            logger.warning(f"    Warning: Unexpected shape {activation_data.shape}, skipping...")
             continue
 
         # Subsample if too many points
         if pc.shape[0] > max_points:
             indices = np.random.choice(pc.shape[0], max_points, replace=False)
             pc = pc[indices]
-            print(f"    Subsampled to {max_points} points")
+            logger.info(f"    Subsampled to {max_points} points")
 
         # Clean layer name for filename
         clean_layer_name = layer_name.replace("/", "_").replace(".", "_")
@@ -556,23 +561,23 @@ def analyze_activation_persistence(
             if "Euclidean" in requested:
                 dists_matrices["Euclidean"] = distance_matrix(pc)
             if "Mahalanobis" in requested:
-                dists_matrices["Mahalanobis"] = mst_obj.fast_maha(X_pca)
+                dists_matrices["Mahalanobis"] = mahalanobis_distance(X_pca)
             if "Cosine" in requested:
-                dists_matrices["Cosine"] = mst_obj.cosine_gen(pc)
+                dists_matrices["Cosine"] = cosine_distance(pc)
             if "Density_Normalized_Euclidean" in requested:
                 base_euclid = dists_matrices.get("Euclidean", distance_matrix(pc))
-                dists_matrices["Density_Normalized_Euclidean"] = mst_obj.density_normalizer(
-                    X=X_pca, dists=base_euclid, k=5
+                dists_matrices["Density_Normalized_Euclidean"] = density_normalized_distance(
+                    X_pca, base_euclid, k=5
                 )
             if "Density_Normalized_Mahalanobis" in requested:
-                base_maha = dists_matrices.get("Mahalanobis", mst_obj.fast_maha(X_pca))
-                dists_matrices["Density_Normalized_Mahalanobis"] = mst_obj.density_normalizer(
-                    X=X_pca, dists=base_maha, k=5
+                base_maha = dists_matrices.get("Mahalanobis", mahalanobis_distance(X_pca))
+                dists_matrices["Density_Normalized_Mahalanobis"] = density_normalized_distance(
+                    X_pca, base_maha, k=5
                 )
 
             # Process each distance metric
             for dist_name, dist_matrix in dists_matrices.items():
-                print(f"    Processing {dist_name} distance metric...")
+                logger.info(f"    Processing {dist_name} distance metric...")
 
                 # Create persistence dendrogram for this distance metric
                 try:
@@ -615,14 +620,14 @@ def analyze_activation_persistence(
                     plt.savefig(output_file, dpi=300, bbox_inches="tight")
                     plt.close()
 
-                    print(f"      Saved: {output_file}")
+                    logger.info(f"      Saved: {output_file}")
 
                 except Exception as e:
-                    print(f"      Error processing {dist_name} for {layer_name}: {e}")
+                    logger.error(f"      Error processing {dist_name} for {layer_name}: {e}")
                     continue
 
         except Exception as e:
-            print(f"    Error processing layer {layer_name}: {e}")
+            logger.error(f"    Error processing layer {layer_name}: {e}")
             continue
 
 
@@ -636,7 +641,7 @@ def run_persistence_analysis_on_results(
         results_dir: Directory containing model results
         max_points: Maximum points per analysis (for computational efficiency)
     """
-    print(f"Running persistence analysis on {results_dir}...")
+    logger.info(f"Running persistence analysis on {results_dir}...")
 
     persistence_output_dir = f"{results_dir}/persistence_dendrograms"
     os.makedirs(persistence_output_dir, exist_ok=True)
@@ -652,7 +657,7 @@ def run_persistence_analysis_on_results(
         ]:
             activations_dir = f"{model_path}/activations"
             if os.path.exists(activations_dir):
-                print(f"Processing {model_name}...")
+                logger.info(f"Processing {model_name}...")
 
                 # Process each activation file
                 activation_files = [

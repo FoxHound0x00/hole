@@ -26,11 +26,10 @@ poetry run pytest -q
 After installation, try the bundled example:
 
 ```bash
-poetry run python examples/three_blobs_example.py
+poetry run python examples/core/hole_example.py
 ```
 
-A figure named `three_blobs_example_sankey.png` will be produced in the project
-root.
+Output figures are written to `examples/core/hole_example_outputs/`.
 
 ---
 

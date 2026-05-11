@@ -12,7 +12,13 @@ pre-commit install
 
 ## Code Style
 
-Black + isort. Run `make format`.
+Black + isort. Run `make format` (or `make lint` for flake8 + mypy).
+
+```bash
+make format
+make lint
+make test
+```
 
 ## Tests
 
